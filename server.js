@@ -32,6 +32,11 @@ const io = new Server(server, {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Đảm bảo mọi truy cập đều trỏ về file index.html (Khắc phục lỗi Cannot GET /)
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // -----------------------------------------
 // CẤU HÌNH TÀI KHOẢN QUẢN TRỊ 
 // -----------------------------------------
@@ -60,31 +65,40 @@ async function loadState() {
         // Ưu tiên đọc dữ liệu từ Firebase
         const docSnap = await getDoc(doc(db, "queueSystem", "currentState"));
         if (docSnap.exists()) {
-            state = docSnap.data();
-            state.waitingList = state.waitingList || [];
-            state.historyList = state.historyList || [];
-            state.counters = state.counters || [{ id: '1', name: 'Quầy 01', rank: '', staff: '' }];
+            const cloudState = docSnap.data();
+            state = { ...state, ...cloudState }; // Gộp dữ liệu để không mất các biến mặc định
             console.log('☁️ [Firebase] Đã tải dữ liệu thành công từ đám mây.');
             return;
         }
-        
-        // Nếu Firebase chưa có, đọc dự phòng từ file data.json
+    } catch (err) {
+        console.error('⚠️ [Lỗi Firebase] Không thể tải dữ liệu đám mây:', err.message);
+    }
+    
+    try {
+        // Nếu Firebase chưa có hoặc bị lỗi (mất mạng), đọc dự phòng từ file data.json
         if (fs.existsSync(DATA_FILE)) {
             const data = fs.readFileSync(DATA_FILE, 'utf8');
-            state = JSON.parse(data);
+            const localState = JSON.parse(data);
+            state = { ...state, ...localState }; // Gộp dữ liệu để không mất các biến mặc định
+            console.log('📁 [Local] Đã tải dữ liệu dự phòng từ máy chủ nội bộ.');
         }
     } catch (err) {
-        console.error('[Lỗi] Không thể đọc dữ liệu:', err);
+        console.error('⚠️ [Lỗi Local] Không thể đọc dữ liệu nội bộ:', err.message);
     }
 }
 
 function saveState() {
     try {
         fs.writeFileSync(DATA_FILE, JSON.stringify(state), 'utf8');
-        // Đồng bộ dữ liệu hiện tại lên Firebase Firestore
-        setDoc(doc(db, "queueSystem", "currentState"), state).catch(e => console.error('[Firebase Error]', e));
     } catch (err) {
-        console.error('[Lỗi] Không thể lưu dữ liệu:', err);
+        console.error('⚠️ [Lỗi Local] Không thể lưu dữ liệu:', err.message);
+    }
+    
+    try {
+        // Đồng bộ dữ liệu hiện tại lên Firebase Firestore
+        setDoc(doc(db, "queueSystem", "currentState"), state).catch(e => console.error('⚠️ [Lỗi Firebase]', e.message));
+    } catch (err) {
+        console.error('⚠️ [Lỗi Firebase] Firebase chưa được khởi tạo đúng cách:', err.message);
     }
 }
 
@@ -130,10 +144,12 @@ io.on('connection', (socket) => {
             if (state.historyList.length > 20) state.historyList.pop();
             
             // LƯU VĨNH VIỄN LỊCH SỬ GIAO DỊCH LÊN FIREBASE ĐỂ LÀM BÁO CÁO
-            addDoc(collection(db, "historyLogs"), {
-                ...state.currentServing,
-                completedAt: new Date().toISOString()
-            }).catch(e => console.error('[Firebase Log Error]', e));
+            try {
+                addDoc(collection(db, "historyLogs"), {
+                    ...state.currentServing,
+                    completedAt: new Date().toISOString()
+                }).catch(e => console.error('⚠️ [Lỗi Firebase]', e.message));
+            } catch (err) {}
         }
 
         state.currentServing = {
@@ -165,7 +181,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('resetQueue', () => {
+    socket.on('resetSystem', () => {
         state = { waitingList: [], historyList: [], currentServing: null, nextNumberToIssue: 1001, marqueeText: state.marqueeText, counters: state.counters };
         saveState();
         console.log(`[Reset] Hệ thống đã được làm mới về 0 bởi thiết bị: ${socket.id}`);
