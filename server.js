@@ -49,6 +49,7 @@ const ADMIN_PASSWORD = 'Abc@123';
 let state = {
     waitingList: [],
     historyList: [],
+    stats: {},
     currentServing: null,
     nextNumberToIssue: 1001,
     marqueeText: 'Kính chào công dân! Vui lòng chuẩn bị sẵn Căn cước công dân và các giấy tờ cần thiết trong lúc chờ đợi để được phục vụ nhanh chóng. Xin cảm ơn!',
@@ -67,6 +68,7 @@ async function loadState() {
         if (docSnap.exists()) {
             const cloudState = docSnap.data();
             state = { ...state, ...cloudState }; // Gộp dữ liệu để không mất các biến mặc định
+            state.stats = state.stats || {};
             console.log('☁️ [Firebase] Đã tải dữ liệu thành công từ đám mây.');
             return;
         }
@@ -80,6 +82,7 @@ async function loadState() {
             const data = fs.readFileSync(DATA_FILE, 'utf8');
             const localState = JSON.parse(data);
             state = { ...state, ...localState }; // Gộp dữ liệu để không mất các biến mặc định
+            state.stats = state.stats || {};
             console.log('📁 [Local] Đã tải dữ liệu dự phòng từ máy chủ nội bộ.');
         }
     } catch (err) {
@@ -143,6 +146,11 @@ io.on('connection', (socket) => {
             state.historyList.unshift(state.currentServing);
             if (state.historyList.length > 20) state.historyList.pop();
             
+            // Thống kê số lượng thủ tục đã giải quyết
+            if (!state.stats) state.stats = {};
+            const serviceType = state.currentServing.service;
+            state.stats[serviceType] = (state.stats[serviceType] || 0) + 1;
+
             // LƯU VĨNH VIỄN LỊCH SỬ GIAO DỊCH LÊN FIREBASE ĐỂ LÀM BÁO CÁO
             try {
                 addDoc(collection(db, "historyLogs"), {
@@ -182,7 +190,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('resetSystem', () => {
-        state = { waitingList: [], historyList: [], currentServing: null, nextNumberToIssue: 1001, marqueeText: state.marqueeText, counters: state.counters };
+        state = { waitingList: [], historyList: [], stats: {}, currentServing: null, nextNumberToIssue: 1001, marqueeText: state.marqueeText, counters: state.counters };
         saveState();
         console.log(`[Reset] Hệ thống đã được làm mới về 0 bởi thiết bị: ${socket.id}`);
         io.emit('updateQueue', state);
@@ -199,7 +207,7 @@ function scheduleMidnightReset() {
     const timeToMidnight = nextMidnight.getTime() - now.getTime();
 
     setTimeout(() => {
-        state = { waitingList: [], historyList: [], currentServing: null, nextNumberToIssue: 1001, marqueeText: state.marqueeText, counters: state.counters };
+        state = { waitingList: [], historyList: [], stats: {}, currentServing: null, nextNumberToIssue: 1001, marqueeText: state.marqueeText, counters: state.counters };
         saveState();
         console.log('[Auto-Reset] Hệ thống đã tự động làm mới về 0 vào lúc nửa đêm.');
         io.emit('updateQueue', state);
