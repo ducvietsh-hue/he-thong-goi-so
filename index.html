@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Lấy Số Tự Động</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- QRCode.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Thư viện Quét QR Code -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+
+        /* Hiệu ứng nhấp nháy khi gọi số */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 30px rgba(220, 38, 38, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+        }
+        .animate-call {
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        
+        /* Hiệu ứng vầng sáng cho Tivi Dark Mode */
+        @keyframes glow-pulse {
+            0% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.2); }
+            50% { box-shadow: 0 0 50px rgba(220, 38, 38, 0.6); }
+            100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.2); }
+        }
+        .animate-glow {
+            animation: glow-pulse 2s infinite;
+        }
+
+        /* Tùy chỉnh thanh cuộn đẹp hơn */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        /* Ẩn input number arrows */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+        /* CSS Chữ chạy (Marquee) hiện đại */
+        .marquee-container {
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        .marquee-content {
+            display: inline-block;
+            padding-left: 100%;
+            animation: marquee 25s linear infinite;
+        }
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-800 overflow-hidden h-screen w-screen selection:bg-red-500 selection:text-white">
+
+    <div id="app" class="relative w-full h-full">
+
+        <!-- ==================== MÀN HÌNH CHỌN CHẾ ĐỘ ==================== -->
+        <div id="screen-select-mode" class="absolute inset-0 hidden flex-col items-center justify-center bg-slate-900 z-50">
+            <div class="text-center mb-12">
+                <h1 class="text-5xl font-black text-white mb-4 tracking-tight">Hệ Thống Lấy Số <span class="text-red-500">Hành Chính</span></h1>
+                <p class="text-slate-400 text-lg">Vui lòng chọn vai trò hiển thị cho thiết bị này</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl w-full px-6">
+                <!-- Nút Tivi -->
+                <button onclick="switchScreen('screen-tv')" class="group relative bg-slate-800 rounded-3xl p-8 hover:bg-slate-700 transition-all border border-slate-700 hover:border-red-500 hover:-translate-y-2 shadow-2xl flex flex-col items-center gap-6">
+                    <div class="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div class="w-24 h-24 bg-red-500/20 text-red-400 rounded-2xl flex items-center justify-center border border-red-500/30 group-hover:scale-110 transition-transform">
+                        <i class="ph ph-monitor-play text-5xl"></i>
+                    </div>
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-white mb-2">Màn Hình Tivi</h2>
+                        <p class="text-slate-400 text-sm leading-relaxed">Hiển thị số đang gọi, danh sách chờ và mã QR tại sảnh chính.</p>
+                    </div>
+                </button>
+
+                <!-- Nút Admin -->
+                <button onclick="switchScreen('screen-admin')" class="group relative bg-slate-800 rounded-3xl p-8 hover:bg-slate-700 transition-all border border-slate-700 hover:border-yellow-500 hover:-translate-y-2 shadow-2xl flex flex-col items-center gap-6">
+                    <div class="absolute inset-0 bg-gradient-to-br from-yellow-600/10 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div class="w-24 h-24 bg-yellow-500/20 text-yellow-400 rounded-2xl flex items-center justify-center border border-yellow-500/30 group-hover:scale-110 transition-transform">
+                        <i class="ph ph-desktop text-5xl"></i>
+                    </div>
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-white mb-2">Cán Bộ Quầy</h2>
+                        <p class="text-slate-400 text-sm leading-relaxed">Dành cho cán bộ tiếp dân. Bấm để gọi số tiếp theo và xem lịch sử.</p>
+                    </div>
+                </button>
+
+                <!-- Nút Điện thoại -->
+                <button onclick="switchScreen('screen-phone')" class="group relative bg-slate-800 rounded-3xl p-8 hover:bg-slate-700 transition-all border border-slate-700 hover:border-red-500 hover:-translate-y-2 shadow-2xl flex flex-col items-center gap-6">
+                    <div class="absolute inset-0 bg-gradient-to-br from-red-600/10 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div class="w-24 h-24 bg-red-500/20 text-red-400 rounded-2xl flex items-center justify-center border border-red-500/30 group-hover:scale-110 transition-transform">
+                        <i class="ph ph-device-mobile text-5xl"></i>
+                    </div>
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-white mb-2">Điện Thoại Lấy Số</h2>
+                        <p class="text-slate-400 text-sm leading-relaxed">Mô phỏng màn hình công dân sau khi quét mã QR Code.</p>
+                    </div>
+                </button>
+            </div>
+            
+            <button onclick="resetSystem()" class="mt-12 text-slate-500 hover:text-red-400 text-sm underline flex items-center gap-2 transition-colors">
+                <i class="ph ph-trash"></i> Xóa toàn bộ dữ liệu (Reset Hệ thống)
+            </button>
+        </div>
+
+        <!-- ==================== MÀN HÌNH ĐĂNG NHẬP ADMIN ==================== -->
+        <div id="screen-login" class="absolute inset-0 hidden flex-col items-center justify-center bg-slate-900/90 backdrop-blur-sm z-[60]">
+            <div class="bg-slate-800 p-10 rounded-[2rem] shadow-2xl border border-slate-700 w-[400px] flex flex-col items-center">
+                <div class="w-20 h-20 bg-red-500/20 text-red-500 rounded-2xl flex items-center justify-center mb-6">
+                    <i class="ph ph-lock-key text-4xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-2">Đăng Nhập Hệ Thống</h2>
+                <p class="text-slate-400 text-sm mb-8 text-center">Vui lòng xác thực tài khoản cán bộ</p>
+                
+                <input type="text" id="login-username" placeholder="Tên đăng nhập..." value="admin" class="w-full bg-slate-900 border border-slate-600 rounded-xl px-5 py-4 text-white mb-4 focus:border-red-500 focus:outline-none transition-colors">
+                <input type="password" id="login-pwd" placeholder="Mật khẩu..." class="w-full bg-slate-900 border border-slate-600 rounded-xl px-5 py-4 text-white mb-8 focus:border-red-500 focus:outline-none transition-colors" onkeypress="if(event.key === 'Enter') submitLogin()">
+                
+                <button onclick="submitLogin()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl transition-colors text-lg shadow-lg shadow-red-600/20">Đăng Nhập</button>
+                <button onclick="switchScreen('screen-select-mode')" class="mt-6 text-slate-400 hover:text-white text-sm transition-colors">Quay lại trang chủ</button>
+            </div>
+        </div>
+
+        <!-- ==================== MÀN HÌNH TIVI (Hiển thị) ==================== -->
+        <div id="screen-tv" class="absolute inset-0 hidden flex flex-col bg-slate-950">
+            <!-- Nút Fullscreen -->
+            <button onclick="toggleFullScreen()" title="Toàn màn hình" class="absolute top-6 right-6 z-50 bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl backdrop-blur transition-all opacity-30 hover:opacity-100 border border-white/10">
+                <i class="ph ph-corners-out text-2xl"></i>
+            </button>
+            
+            <!-- Nút Quay lại (Chỉ dành cho demo) -->
+            <button onclick="switchScreen('screen-select-mode')" title="Quay lại" class="absolute top-6 right-20 z-50 bg-white/10 hover:bg-red-500/80 text-white p-3 rounded-xl backdrop-blur transition-all opacity-30 hover:opacity-100 border border-white/10">
+                <i class="ph ph-house text-2xl"></i>
+            </button>
+
+            <!-- Header Tivi -->
+            <div class="bg-red-900/90 text-white p-4 border-b-[4px] border-yellow-500 flex justify-between items-center z-10 shadow-lg relative overflow-hidden">
+                <div class="absolute inset-0 bg-gradient-to-r from-red-800 to-red-950"></div>
+                <div class="flex items-center gap-6 pl-4 relative z-10">
+                     <img src="logo.png" alt="Logo Công an" class="w-20 h-20 p-2 bg-yellow-50 object-contain shrink-0 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] rounded-full shadow-lg">
+                    <div>
+                        <h1 class="text-3xl font-black tracking-wider text-yellow-400 uppercase drop-shadow-md">CÔNG AN PHƯỜNG BUÔN MA THUỘT</h1>
+                        <p class="text-slate-100 text-lg font-bold tracking-widest mt-1 uppercase">Bộ Phận Tiếp Nhận Và Trả Kết Quả</p>
+                    </div>
+                </div>
+                <div id="clock-display" class="text-5xl font-black font-mono text-yellow-400 tracking-wider pr-12 drop-shadow-md relative z-10">
+                    12:00:00
+                </div>
+            </div>
+
+            <!-- Content Tivi -->
+            <div class="flex-1 flex p-6 gap-6 overflow-hidden">
+                
+                <!-- Khu vực hiển thị số ĐANG GỌI (Trái) -->
+                <div class="flex-1 flex flex-col gap-6">
+                    <!-- Số đang gọi hiện tại -->
+                    <div class="bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-700 flex-1 flex flex-col overflow-hidden relative group">
+                        <div class="absolute inset-0 bg-gradient-to-br from-red-900/20 to-slate-900 pointer-events-none"></div>
+                        
+                        <div class="bg-slate-900/50 backdrop-blur py-6 border-b border-slate-700/50 text-center z-10">
+                            <h2 class="text-3xl font-black uppercase tracking-[0.3em] text-yellow-500">Đang Phục Vụ</h2>
+                        </div>
+                        
+                        <div class="flex-1 flex flex-col items-center justify-center relative z-10 pb-10">
+                            <p class="text-slate-400 text-3xl font-semibold mb-2 uppercase tracking-[0.2em]">Số thứ tự</p>
+                            <!-- Số lớn -->
+                            <div id="tv-current-number" class="text-[22rem] font-black text-white leading-none drop-shadow-[0_0_35px_rgba(220,38,38,0.6)] transition-all duration-500 font-mono tracking-tighter my-4">
+                                --
+                            </div>
+                            <div class="mt-8 flex flex-col items-center gap-2 bg-slate-900/80 backdrop-blur px-12 py-6 rounded-2xl border border-red-500/30 shadow-[0_0_20px_rgba(220,38,38,0.2)] w-full max-w-[80%]">
+                                <div class="flex items-center gap-6">
+                                    <span class="text-slate-400 text-3xl font-medium uppercase tracking-wider">Mời đến:</span>
+                                    <span id="tv-current-counter" class="text-7xl font-black text-red-500 text-center">--</span>
+                                </div>
+                                <div id="tv-current-staff" class="text-3xl font-bold text-yellow-400 mt-2 hidden uppercase tracking-wider text-center"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quét QR (Dưới cùng bên trái) -->
+                    <div class="bg-slate-800 rounded-3xl shadow-xl border border-slate-700 p-6 flex items-center gap-8 h-[240px]">
+                        <div class="bg-white p-3 rounded-2xl shadow-inner h-full aspect-square flex items-center justify-center">
+                            <div id="qrcode-tv" class="w-full h-full flex items-center justify-center [&>img]:w-full [&>img]:h-full [&>img]:object-contain"></div>
+                        </div>
+                        <div class="flex flex-col justify-center flex-1">
+                            <h3 class="text-4xl font-black text-white mb-4 flex items-center gap-3 uppercase tracking-wider">
+                                <i class="ph ph-qr-code text-red-400 text-5xl"></i>
+                                Quét mã lấy số
+                            </h3>
+                            <p class="text-slate-400 text-xl mb-6 leading-relaxed">Sử dụng <span class="text-white font-semibold">Camera</span> hoặc <span class="text-red-400 font-semibold">Zalo</span> để lấy số trực tiếp trên điện thoại.</p>
+                            <div class="flex gap-4">
+                                <span class="bg-red-500/20 border border-red-500/30 text-red-300 px-5 py-2 rounded-xl text-base font-bold uppercase tracking-wider shadow-inner">Không cần chen lấn</span>
+                                <span class="bg-yellow-500/20 border border-yellow-500/30 text-yellow-300 px-5 py-2 rounded-xl text-base font-bold uppercase tracking-wider shadow-inner">Tiện lợi, Nhanh chóng</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh sách hàng chờ (Phải) -->
+                <div class="w-[32%] min-w-[450px] flex flex-col bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-700 overflow-hidden">
+                    <div class="bg-slate-900/80 backdrop-blur p-6 border-b border-slate-700 flex justify-between items-center z-10 shadow-md">
+                        <h2 class="text-2xl font-black uppercase tracking-widest text-slate-100 flex items-center gap-3">
+                            <i class="ph ph-users text-red-400 text-3xl"></i>
+                            Danh Sách Chờ
+                        </h2>
+                        <span id="tv-waiting-count" class="bg-red-600/20 border border-red-500/50 text-red-400 px-5 py-2 rounded-full text-xl font-bold">0 công dân</span>
+                    </div>
+                    <div class="flex-1 overflow-y-auto custom-scroll p-6 bg-slate-800/50" id="tv-waiting-list">
+                        <!-- Danh sách chờ sẽ render ở đây -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dòng chữ chạy dưới cùng (Marquee) -->
+            <div class="bg-red-700 text-white font-bold text-[32px] py-4 shadow-[0_-4px_10px_rgba(0,0,0,0.2)] z-20 marquee-container">
+                <div id="marquee-text" class="marquee-content">Kính chào công dân! Vui lòng chuẩn bị sẵn Căn cước công dân và các giấy tờ cần thiết trong lúc chờ đợi để phục vụ nhanh chóng.</div>
+            </div>
+        </div>
+
+
+        <!-- ==================== MÀN HÌNH QUẢN TRỊ QUẦY ==================== -->
+        <div id="screen-admin" class="absolute inset-0 hidden flex flex-col bg-slate-100">
+            <!-- Header Admin -->
+            <div class="bg-slate-800 text-white p-5 shadow-md flex justify-between items-center z-10 border-b-[3px] border-red-600">
+                <div class="flex items-center gap-4">
+                    <img src="logo.png" alt="Logo" class="w-12 h-12 p-1.5 bg-yellow-50 object-contain shrink-0 rounded-full shadow-md">
+                    <div>
+                        <h1 class="text-2xl font-bold uppercase tracking-wider text-yellow-500">Bảng Điều Khiển Cán Bộ</h1>
+                        <p class="text-slate-300 text-sm font-medium uppercase tracking-widest">Công an phường Buôn Ma Thuột</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-3 bg-slate-700 p-2 rounded-xl border border-slate-600">
+                        <span class="text-sm text-slate-300 font-medium ml-2 uppercase tracking-wider">Chọn Quầy:</span>
+                        <select id="admin-counter-select" class="bg-slate-900 text-yellow-400 font-bold border border-slate-600 rounded-lg px-4 py-2 outline-none text-lg cursor-pointer">
+                        </select>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="toggleFullScreen()" title="Toàn màn hình" class="bg-slate-700 hover:bg-slate-600 p-3 rounded-xl transition-colors border border-slate-600">
+                            <i class="ph ph-corners-out text-xl text-slate-300"></i>
+                        </button>
+                        <button onclick="switchScreen('screen-select-mode'); isAdminLoggedIn=false;" title="Đăng xuất" class="bg-red-500/20 hover:bg-red-500/40 p-3 rounded-xl transition-colors border border-red-500/30">
+                            <i class="ph ph-sign-out text-xl text-red-400"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Admin -->
+            <div class="flex-1 flex p-6 gap-6 overflow-hidden bg-slate-200">
+                
+                <!-- Bảng điều khiển (Trái) -->
+                <div class="flex-1 flex flex-col gap-6 overflow-y-auto custom-scroll pr-2">
+                    <!-- Gọi số -->
+                    <div class="bg-white p-8 rounded-3xl shadow-lg border border-slate-200 text-center flex flex-col justify-center flex-1">
+                        <h2 class="text-slate-500 font-bold uppercase tracking-widest mb-4">Đang phục vụ số</h2>
+                        <div id="admin-current-serving" class="text-[12rem] leading-none font-black text-red-600 mb-10 drop-shadow-md font-mono">
+                            --
+                        </div>
+                        
+                        <div class="flex gap-4 justify-center px-12">
+                            <button id="btn-call-next" onclick="callNextNumber()" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-6 px-8 rounded-2xl font-black shadow-xl shadow-red-500/30 transition-all active:scale-95 flex items-center justify-center gap-4 text-3xl uppercase tracking-wider">
+                                <i class="ph ph-megaphone text-5xl"></i>
+                                GỌI SỐ TIẾP THEO
+                            </button>
+                        </div>
+                        <p class="text-slate-400 mt-6 text-sm italic">* Số sẽ được phát loa và hiển thị lên màn hình Tivi</p>
+                    </div>
+
+                    <!-- Cập nhật thông báo chữ chạy -->
+                    <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
+                        <h3 class="font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-wider">
+                            <i class="ph ph-text-aa text-red-600 text-2xl"></i>
+                            Câu thông báo chạy trên Tivi
+                        </h3>
+                        <div class="flex gap-3">
+                            <input type="text" id="admin-marquee-input" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800" placeholder="Nhập nội dung thông báo...">
+                            <button onclick="updateMarquee()" class="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-xl font-bold transition-colors whitespace-nowrap">Cập nhật</button>
+                        </div>
+                    </div>
+
+                    <!-- Quản lý Quầy & Cán bộ -->
+                    <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
+                        <h3 class="font-bold text-slate-800 mb-3 flex items-center gap-2 uppercase tracking-wider">
+                            <i class="ph ph-users-three text-red-600 text-2xl"></i>
+                            Quản lý Cán bộ trực quầy
+                        </h3>
+                        <p class="text-sm text-slate-500 mb-4">Cập nhật cấp bậc, họ tên cán bộ để hiển thị lên màn hình Tivi cho công dân biết.</p>
+                        <div id="admin-counters-list" class="space-y-3 mb-4">
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="addCounter()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl font-bold transition-colors border border-slate-300 flex items-center gap-2"><i class="ph ph-plus-circle text-lg"></i> Thêm Quầy</button>
+                            <button onclick="saveCounters()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-xl font-bold transition-colors shadow-md">💾 Lưu danh sách</button>
+                        </div>
+                    </div>
+
+                    <!-- Lịch sử -->
+                    <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200 h-[30%] min-h-[250px] flex flex-col">
+                        <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wider border-b border-slate-100 pb-4">
+                            <i class="ph ph-clock-counter-clockwise text-red-600 text-2xl"></i>
+                            Lịch sử đã phục vụ
+                        </h3>
+                        <div class="flex-1 overflow-y-auto custom-scroll pr-2 space-y-3" id="admin-history-list">
+                            <!-- Lịch sử render ở đây -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh sách hàng chờ (Phải) -->
+                <div class="w-[35%] flex flex-col bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-50 p-6 border-b border-slate-200 flex justify-between items-center shadow-sm z-10">
+                        <h3 class="font-black text-slate-800 uppercase tracking-wider text-xl flex items-center gap-2">
+                            <i class="ph ph-list-numbers text-red-600 text-2xl"></i>
+                            Danh Sách Đang Chờ
+                        </h3>
+                        <span id="admin-waiting-count" class="bg-red-100 text-red-700 px-4 py-1.5 rounded-full text-lg font-black shadow-inner border border-red-200">0</span>
+                    </div>
+                    <div class="flex-1 overflow-y-auto custom-scroll p-4 bg-slate-50/50" id="admin-waiting-list">
+                        <!-- Danh sách chờ render ở đây -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+
+        <!-- ==================== MÀN HÌNH ĐIỆN THOẠI (Người dân lấy số) ==================== -->
+        <div id="screen-phone" class="absolute inset-0 hidden bg-slate-100 overflow-y-auto">
+            <div class="max-w-md mx-auto min-h-screen bg-white shadow-2xl relative flex flex-col">
+                <!-- Nút thoát -->
+                <button onclick="switchScreen('screen-select-mode')" class="absolute top-4 left-4 z-50 bg-black/10 hover:bg-black/20 text-slate-700 p-2 rounded-full backdrop-blur transition-all">
+                    <i class="ph ph-arrow-left text-xl"></i>
+                </button>
+
+                <!-- Phone Header -->
+                <div class="bg-red-700 text-white px-6 pb-10 pt-14 rounded-b-[2.5rem] shadow-lg relative overflow-hidden">
+                    <div class="absolute inset-0 bg-gradient-to-br from-red-600 to-red-800"></div>
+                    <div class="absolute -right-10 -top-10 text-white/10">
+                        <i class="ph ph-shield-star text-[150px]"></i>
+                    </div>
+                    <div class="relative z-10 flex items-center gap-4">
+                        <img src="logo.png" alt="Logo" class="w-14 h-14 p-1.5 bg-yellow-50 object-contain shrink-0 rounded-full shadow-md">
+                        <div>
+                            <h1 class="text-2xl font-black mb-1">Lấy Số Thứ Tự</h1>
+                            <p class="text-red-100 text-xs font-bold uppercase tracking-wider">Công an P. Buôn Ma Thuột</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phone Content: Chưa lấy số (Form) -->
+                <div id="phone-form-view" class="flex-1 px-6 pt-8 pb-10 flex flex-col gap-6 -mt-6 relative z-20">
+                    <div class="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 flex-1 flex flex-col gap-5">
+                        <!-- Nút quét CCCD -->
+                        <button type="button" onclick="startCCCDScan()" class="w-full bg-slate-800 hover:bg-slate-700 text-white rounded-2xl py-3 font-bold text-base transition-all flex items-center justify-center gap-2 mb-2 shadow-md">
+                            <i class="ph ph-scan text-xl"></i> Quét mã QR trên thẻ CCCD
+                        </button>
+
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-bold text-slate-600 uppercase tracking-wider ml-1">Họ và tên của bạn</label>
+                            <input type="text" id="phone-input-name" placeholder="Ví dụ: Nguyễn Văn A" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-lg">
+                        </div>
+
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-bold text-slate-600 uppercase tracking-wider ml-1">Ngày sinh</label>
+                            <input type="date" id="phone-input-dob" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-lg">
+                        </div>
+
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-bold text-slate-600 uppercase tracking-wider ml-1">Nơi thường trú</label>
+                            <textarea id="phone-input-address" rows="2" placeholder="Tự động điền khi quét CCCD..." class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base"></textarea>
+                        </div>
+
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-bold text-slate-600 uppercase tracking-wider ml-1">Lĩnh vực cần giải quyết</label>
+                            <select id="phone-input-service" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-lg appearance-none cursor-pointer">
+                                <option value="Đăng ký cư trú">Đăng ký cư trú (Thường trú, Tạm trú)</option>
+                                <option value="Căn cước công dân">Cấp, đổi Căn cước công dân</option>
+                                <option value="Đăng ký phương tiện">Đăng ký phương tiện giao thông</option>
+                                <option value="PCCC & ANTT">Thủ tục PCCC & An ninh trật tự</option>
+                                <option value="Khác">Các thủ tục khác</option>
+                            </select>
+                        </div>
+
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-bold text-slate-600 uppercase tracking-wider ml-1">Mã hồ sơ dịch vụ công <span class="text-red-500">*</span></label>
+                            <input type="text" id="phone-input-service-code" placeholder="Nhập mã hồ sơ DVC trực tuyến..." class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-lg">
+                        </div>
+                        
+                        <div class="mt-auto pt-6">
+                            <button onclick="handleTakeNumber()" class="w-full bg-red-600 hover:bg-red-700 text-white rounded-2xl py-4 font-black text-xl shadow-lg shadow-red-500/30 transition-all active:scale-95 uppercase tracking-widest flex items-center justify-center gap-2">
+                                Nhận số thứ tự <i class="ph ph-arrow-right-bold"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phone Content: Đã lấy số (Ticket) -->
+                <div id="phone-ticket-view" class="hidden flex-1 px-6 py-8 flex-col items-center justify-center relative z-20 -mt-6">
+                    <div class="bg-white w-full rounded-3xl p-8 shadow-2xl border-t-4 border-t-red-600 text-center relative overflow-hidden">
+                        <!-- Background pattern -->
+                        <div class="absolute inset-0 opacity-[0.03] pointer-events-none" style="background-image: radial-gradient(#dc2626 2px, transparent 2px); background-size: 20px 20px;"></div>
+                        
+                        <h2 class="text-slate-500 font-bold uppercase tracking-widest text-sm mb-2 relative z-10">Số thứ tự của bạn</h2>
+                        <div id="phone-my-number" class="text-8xl font-black text-red-600 mb-6 drop-shadow-sm font-mono tracking-tighter relative z-10">
+                            --
+                        </div>
+                        
+                        <div class="bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100 relative z-10">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-slate-500 text-sm">Họ tên:</span>
+                                <span id="phone-my-name" class="font-bold text-slate-800">--</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-500 text-sm">Dịch vụ:</span>
+                                <span id="phone-my-service" class="font-bold text-slate-800">--</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-100">
+                                <span class="text-slate-500 text-sm">Mã DVC:</span>
+                                <span id="phone-my-service-code" class="font-bold text-red-600 text-right w-2/3 truncate">--</span>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-dashed border-slate-300 pt-6 mt-2 relative z-10">
+                            <p class="text-slate-500 text-sm mb-2">Số đang được phục vụ</p>
+                            <div class="flex justify-center items-baseline gap-2">
+                                <span id="phone-current-serving" class="text-4xl font-black text-red-600">--</span>
+                                <span class="text-slate-400 font-medium">/ Quầy <span id="phone-current-counter" class="text-slate-600 font-bold">--</span></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="resetPhoneForm()" class="mt-8 text-slate-500 hover:text-red-600 font-medium underline flex items-center gap-2">
+                        <i class="ph ph-plus-circle"></i> Lấy thêm số khác
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Scanner CCCD -->
+        <div id="cccd-scanner-modal" class="fixed inset-0 bg-black/90 z-[100] hidden flex-col items-center justify-center">
+            <div class="relative w-full max-w-md bg-white rounded-2xl flex flex-col m-4 overflow-hidden">
+                <div class="p-4 bg-slate-800 text-white flex justify-between items-center">
+                    <h3 class="font-bold text-lg flex items-center gap-2"><i class="ph ph-scan"></i> Quét mã CCCD</h3>
+                    <button onclick="closeCCCDScan()" class="text-white bg-red-500 hover:bg-red-600 rounded-full w-8 h-8 flex items-center justify-center"><i class="ph ph-x"></i></button>
+                </div>
+                <div id="camera-warning" class="hidden p-3 bg-yellow-100 text-yellow-800 text-sm font-medium border-b border-yellow-200">⚠️ Trình duyệt chặn Camera do thiếu kết nối bảo mật HTTPS. Hiện chỉ có thể chọn ảnh có sẵn!</div>
+                <div id="cccd-reader" class="w-full bg-slate-100 min-h-[300px]"></div>
+                <p class="p-4 text-sm text-center text-slate-600 font-medium">Đưa mã QR ở mặt trước thẻ CCCD vào khung hình để quét và tự động điền thông tin.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // KẾT NỐI SOCKET.IO THỰC TẾ
+        const socket = io();
+        
+        let state = {
+            waitingList: [],
+            historyList: [],
+            currentServing: null,
+            nextNumberToIssue: 1001,
+            marqueeText: ''
+        };
+
+        let myTicket = null;
+        let isAdminLoggedIn = false;
+        let prevServing = null;
+        let localCounters = [];
+
+        // --- LẮNG NGHE SỰ KIỆN TỪ SERVER ---
+        socket.on('updateQueue', (newState) => {
+            state = newState;
+            
+            // Kiểm tra xem có số mới đang gọi không để phát âm thanh Tivi
+            if (!document.getElementById('screen-tv').classList.contains('hidden')) {
+                if (state.currentServing && (!prevServing || prevServing.number !== state.currentServing.number)) {
+                    playCallEffect();
+                }
+            }
+            prevServing = state.currentServing;
+            
+            renderUI();
+        });
+
+        socket.on('ticketIssued', (ticket) => {
+            myTicket = ticket;
+            document.getElementById('phone-form-view').style.display = 'none';
+            document.getElementById('phone-ticket-view').style.display = 'flex';
+            document.getElementById('phone-my-number').textContent = myTicket.number;
+            document.getElementById('phone-my-name').textContent = myTicket.name;
+            document.getElementById('phone-my-service').textContent = myTicket.service;
+            document.getElementById('phone-my-service-code').textContent = myTicket.serviceCode;
+        });
+
+        socket.on('loginSuccess', () => {
+            isAdminLoggedIn = true;
+            document.querySelectorAll('#app > div').forEach(el => el.style.display = 'none');
+            document.getElementById('screen-admin').style.display = 'flex';
+        });
+
+        socket.on('loginFail', () => {
+            alert('Tài khoản hoặc mật khẩu không chính xác!');
+        });
+
+        // --- KHỞI TẠO MÀN HÌNH ---
+        window.onload = () => {
+            // Tự động phân giải chế độ thông qua URL (ví dụ: ?mode=phone)
+            const urlParams = new URLSearchParams(window.location.search);
+            const mode = urlParams.get('mode');
+            
+            if (mode === 'phone') switchScreen('screen-phone');
+            else if (mode === 'tv') switchScreen('screen-tv');
+            else if (mode === 'admin') switchScreen('screen-admin');
+            else {
+                document.querySelectorAll('#app > div').forEach(el => el.style.display = 'none');
+                document.getElementById('screen-select-mode').style.display = 'flex';
+            }
+        };
+
+        // --- CÁC HÀM TIỆN ÍCH ---
+        function switchScreen(screenId) {
+            // Chặn vào Admin nếu chưa đăng nhập
+            if (screenId === 'screen-admin' && !isAdminLoggedIn) {
+                document.querySelectorAll('#app > div').forEach(el => el.style.display = 'none');
+                document.getElementById('screen-login').style.display = 'flex';
+                return;
+            }
+            
+            document.querySelectorAll('#app > div').forEach(el => el.style.display = 'none');
+            document.getElementById(screenId).style.display = (screenId === 'screen-phone') ? 'block' : 'flex';
+
+            if (screenId === 'screen-tv') generateQRCode();
+        }
+
+        function submitLogin() {
+            const user = document.getElementById('login-username').value;
+            const pwd = document.getElementById('login-pwd').value;
+            // Gửi lên server cả username và password
+            socket.emit('login', { username: user, password: pwd });
+        }
+
+        function toggleFullScreen() {
+            const elem = document.documentElement;
+            if (!document.fullscreenElement) elem.requestFullscreen?.() || elem.webkitRequestFullscreen?.() || elem.msRequestFullscreen?.();
+            else document.exitFullscreen?.() || document.webkitExitFullscreen?.() || document.msExitFullscreen?.();
+        }
+
+        setInterval(() => {
+            const clockEl = document.getElementById('clock-display');
+            if(clockEl) clockEl.textContent = new Date().toLocaleTimeString('vi-VN', { hour12: false });
+        }, 1000);
+
+        function generateQRCode() {
+            const qrContainer = document.getElementById('qrcode-tv');
+            qrContainer.innerHTML = ''; 
+            
+            // Tự động gán đuôi ?mode=phone để khi quét người dân vào thẳng màn hình điện thoại
+            const url = window.location.origin + '?mode=phone';
+            
+            new QRCode(qrContainer, {
+                text: url, width: 200, height: 200, colorDark: "#1e293b", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H
+            });
+
+            // Cảnh báo nếu đang chạy trên localhost
+            const warningEl = document.getElementById('qr-warning');
+            if (warningEl) {
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    warningEl.style.display = 'block';
+                } else {
+                    warningEl.style.display = 'none';
+                }
+            }
+        }
+
+        // --- NGHIỆP VỤ QUÉT CCCD ---
+        let html5QrcodeScanner = null;
+
+        function startCCCDScan() {
+            document.getElementById('cccd-scanner-modal').style.display = 'flex';
+            
+            // Kiểm tra xem trình duyệt có hỗ trợ Camera hay không (thường bị chặn nếu dùng HTTP)
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                const camWarning = document.getElementById('camera-warning');
+                if (camWarning) camWarning.style.display = 'block';
+            }
+
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5QrcodeScanner(
+                    "cccd-reader",
+                    { fps: 10, qrbox: {width: 250, height: 250} },
+                    false
+                );
+            }
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        }
+
+        function closeCCCDScan() {
+            document.getElementById('cccd-scanner-modal').style.display = 'none';
+            if (html5QrcodeScanner) html5QrcodeScanner.clear();
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            // Định dạng QR CCCD VN: Số CCCD | Số CMND | Họ và tên | Ngày sinh | Giới tính | Địa chỉ | Ngày cấp
+            const parts = decodedText.split('|');
+            if (parts.length >= 6) {
+                document.getElementById('phone-input-name').value = parts[2] || '';
+                
+                // Chuyển đổi ngày sinh từ ddmmyyyy (VD: 01011990) sang yyyy-mm-dd cho input date
+                const dobRaw = parts[3];
+                if (dobRaw && dobRaw.length === 8) {
+                    document.getElementById('phone-input-dob').value = `${dobRaw.substring(4, 8)}-${dobRaw.substring(2, 4)}-${dobRaw.substring(0, 2)}`;
+                }
+
+                document.getElementById('phone-input-address').value = parts[5] || '';
+                
+                closeCCCDScan();
+                alert('✅ Quét dữ liệu CCCD thành công!');
+            } else {
+                alert('❌ Mã QR không đúng định dạng Thẻ Căn cước!');
+            }
+        }
+
+        function onScanFailure(error) { /* Bỏ qua lỗi khung hình rỗng */ }
+
+        // --- NGHIỆP VỤ LÕI (Gửi lệnh lên server) ---
+        function handleTakeNumber() {
+            const nameInput = document.getElementById('phone-input-name').value.trim();
+            const dobInput = document.getElementById('phone-input-dob').value;
+            const addressInput = document.getElementById('phone-input-address').value.trim();
+            const serviceInput = document.getElementById('phone-input-service').value;
+            const serviceCodeInput = document.getElementById('phone-input-service-code').value.trim();
+            
+            if (!nameInput) return alert("Vui lòng nhập họ và tên của bạn!");
+            if (!serviceCodeInput) return alert("Vui lòng nhập Mã hồ sơ Dịch vụ công!");
+            
+            socket.emit('registerTicket', { 
+                name: nameInput, 
+                dob: dobInput,
+                address: addressInput,
+                service: serviceInput,
+                serviceCode: serviceCodeInput 
+            });
+        }
+
+        function resetPhoneForm() {
+            myTicket = null;
+            document.getElementById('phone-input-name').value = '';
+            document.getElementById('phone-input-dob').value = '';
+            document.getElementById('phone-input-address').value = '';
+            document.getElementById('phone-input-service-code').value = '';
+            document.getElementById('phone-form-view').style.display = 'flex';
+            document.getElementById('phone-ticket-view').style.display = 'none';
+        }
+
+        function callNextNumber() {
+            const counterNumber = document.getElementById('admin-counter-select').value;
+            socket.emit('callNext', { counterId: counterNumber });
+        }
+
+        function updateMarquee() {
+            const newText = document.getElementById('admin-marquee-input').value.trim();
+            if (newText) {
+                socket.emit('updateMarquee', { text: newText });
+                alert("Đã cập nhật thông báo thành công!");
+            }
+        }
+
+        function renderCountersList() {
+            const list = document.getElementById('admin-counters-list');
+            if(!list) return;
+            list.innerHTML = '';
+            localCounters.forEach((c, index) => {
+                list.innerHTML += `
+                    <div class="flex gap-2 items-center">
+                        <input type="text" value="${c.name}" placeholder="Tên (VD: Quầy 01)" id="c-name-${index}" class="w-1/4 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-red-500">
+                        <input type="text" value="${c.rank || ''}" placeholder="Cấp bậc (VD: Đại úy)" id="c-rank-${index}" class="w-1/4 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-red-500">
+                        <input type="text" value="${c.staff || ''}" placeholder="Họ tên cán bộ" id="c-staff-${index}" class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-red-500">
+                        <button onclick="removeCounter(${index})" class="bg-red-100 hover:bg-red-200 text-red-600 p-2 rounded-lg transition-colors"><i class="ph ph-trash text-lg"></i></button>
+                    </div>
+                `;
+            });
+        }
+
+        function addCounter() {
+            localCounters.push({ id: Date.now().toString(), name: `Quầy 0${localCounters.length + 1}`, rank: '', staff: '' });
+            renderCountersList();
+        }
+
+        function removeCounter(index) {
+            if(confirm("Bạn có chắc muốn xóa quầy này không?")) {
+                localCounters.splice(index, 1);
+                renderCountersList();
+            }
+        }
+
+        function saveCounters() {
+            const updated = localCounters.map((c, index) => ({
+                id: c.id,
+                name: document.getElementById(`c-name-${index}`).value.trim(),
+                rank: document.getElementById(`c-rank-${index}`).value.trim(),
+                staff: document.getElementById(`c-staff-${index}`).value.trim()
+            }));
+            socket.emit('updateCounters', updated);
+            alert('Đã cập nhật danh sách Quầy và Cán bộ thành công!');
+        }
+
+        function playCallEffect() {
+            if (!state.currentServing) return;
+            
+            const number = state.currentServing.number;
+            const counterId = state.currentServing.counter;
+            
+            const activeCounter = state.counters?.find(c => c.id === counterId);
+            const counterName = activeCounter ? activeCounter.name : `quầy số ${counterId}`;
+
+            // 1. Hiệu ứng nhấp nháy trên Tivi
+            const tvNumberEl = document.getElementById('tv-current-number');
+            if (tvNumberEl) {
+                tvNumberEl.classList.remove('animate-glow');
+                void tvNumberEl.offsetWidth; 
+                tvNumberEl.classList.add('animate-glow');
+                
+                tvNumberEl.parentElement.classList.add('animate-call');
+                setTimeout(() => tvNumberEl.parentElement.classList.remove('animate-call'), 4000);
+            }
+
+            // 2. Phát âm thanh (Sử dụng Web Speech API đọc tiếng Việt)
+            try {
+                window.speechSynthesis.cancel();
+                const bell = new Audio('https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg');
+                bell.volume = 0.5;
+                
+                bell.play().then(() => {
+                    setTimeout(() => {
+                        const msg = new SpeechSynthesisUtterance();
+                        const numStr = number.toString().split('').join(' ');
+                        msg.text = `Mời công dân mang số, ${numStr}, đến ${counterName}.`;
+                        msg.lang = 'vi-VN';
+                        msg.rate = 0.85; 
+                        window.speechSynthesis.speak(msg);
+                    }, 1000);
+                }).catch(e => console.log("Hãy click một lần vào màn hình Tivi để bật tiếng!"));
+            } catch (error) {
+                console.error("Lỗi phát âm thanh:", error);
+            }
+        }
+
+        function resetSystem() {
+            if(confirm('Bạn có chắc chắn muốn xóa toàn bộ danh sách chờ và lịch sử để bắt đầu ngày mới?')) {
+                socket.emit('resetSystem');
+                resetPhoneForm();
+                alert('Hệ thống đã được reset!');
+            }
+        }
+
+        // --- RENDER GIAO DIỆN TỪ DATA SERVER ---
+        function renderUI() {
+            // 1. Cập nhật Màn hình Tivi
+            const tvNumber = document.getElementById('tv-current-number');
+            const tvCounter = document.getElementById('tv-current-counter');
+            
+            if (state.currentServing) {
+                tvNumber.textContent = state.currentServing.number;
+                
+                const activeCounter = state.counters?.find(c => c.id === state.currentServing.counter);
+                if (activeCounter) {
+                    tvCounter.textContent = activeCounter.name;
+                    const staffEl = document.getElementById('tv-current-staff');
+                    if (activeCounter.staff) {
+                        staffEl.textContent = `${activeCounter.rank ? activeCounter.rank + ' ' : ''}${activeCounter.staff}`;
+                        staffEl.classList.remove('hidden');
+                    } else {
+                        staffEl.classList.add('hidden');
+                    }
+                } else {
+                    tvCounter.textContent = state.currentServing.counter;
+                    document.getElementById('tv-current-staff').classList.add('hidden');
+                }
+                tvNumber.classList.remove('text-slate-700');
+            } else {
+                tvNumber.textContent = "--";
+                tvCounter.textContent = "--";
+                tvNumber.classList.add('text-slate-700');
+            }
+
+            document.getElementById('tv-waiting-count').textContent = `${state.waitingList.length} công dân`;
+            const tvWaitingListEl = document.getElementById('tv-waiting-list');
+            if (state.waitingList.length === 0) {
+                tvWaitingListEl.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-slate-500 opacity-50 mt-10">
+                        <i class="ph ph-coffee text-7xl mb-4"></i>
+                        <p class="text-2xl font-medium">Chưa có công dân xếp hàng</p>
+                    </div>`;
+            } else {
+                tvWaitingListEl.innerHTML = state.waitingList.slice(0, 10).map((item, index) => `
+                    <div class="bg-slate-700/40 hover:bg-slate-700 p-5 mb-4 rounded-2xl border-l-[6px] border-red-500 flex justify-between items-center transition-colors">
+                        <div class="flex items-center gap-5">
+                            <span class="text-red-400/80 font-black text-3xl w-8">${index + 1}.</span>
+                            <div>
+                                <span class="text-5xl font-black text-white tracking-wider">${item.number}</span>
+                                <p class="text-base text-slate-400 mt-1 uppercase font-medium truncate w-48">${item.name}</p>
+                            </div>
+                        </div>
+                        <i class="ph ph-clock text-3xl text-slate-500"></i>
+                    </div>
+                `).join('');
+            }
+
+            // Cập nhật dòng chữ chạy
+            if (state.marqueeText) {
+                const marqueeEl = document.getElementById('marquee-text');
+                if (marqueeEl && marqueeEl.innerText !== state.marqueeText) {
+                    marqueeEl.innerText = state.marqueeText;
+                }
+                
+                const adminMarqueeEl = document.getElementById('admin-marquee-input');
+                if (adminMarqueeEl && document.activeElement !== adminMarqueeEl) adminMarqueeEl.value = state.marqueeText;
+            }
+
+            // Cập nhật dropdown chọn quầy Admin và danh sách cán bộ
+            const select = document.getElementById('admin-counter-select');
+            const currentValue = select.value;
+            
+            if (state.counters && state.counters.length > 0) {
+                const isEditingCounters = Array.from(document.querySelectorAll('#admin-counters-list input')).some(el => el === document.activeElement);
+                if (!isEditingCounters) {
+                    localCounters = JSON.parse(JSON.stringify(state.counters));
+                    renderCountersList();
+                }
+
+                select.innerHTML = state.counters.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+                if (currentValue && state.counters.find(c => c.id === currentValue)) {
+                    select.value = currentValue;
+                }
+            } else {
+                select.innerHTML = '<option value="-">Chưa thiết lập quầy</option>';
+            }
+
+            // 2. Cập nhật Màn hình Admin
+            const adminNumber = document.getElementById('admin-current-serving');
+            if (state.currentServing) adminNumber.textContent = state.currentServing.number;
+            else adminNumber.textContent = "--";
+
+            document.getElementById('admin-waiting-count').textContent = state.waitingList.length;
+            const btnCall = document.getElementById('btn-call-next');
+            
+            if (state.waitingList.length === 0) {
+                btnCall.disabled = true;
+                btnCall.classList.add('opacity-50', 'saturate-0', 'cursor-not-allowed');
+                document.getElementById('admin-waiting-list').innerHTML = `<p class="text-center text-slate-400 mt-10 font-medium">Hàng chờ rỗng</p>`;
+            } else {
+                btnCall.disabled = false;
+                btnCall.classList.remove('opacity-50', 'saturate-0', 'cursor-not-allowed');
+                document.getElementById('admin-waiting-list').innerHTML = state.waitingList.map((item, index) => `
+                    <div class="bg-white p-4 mb-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center group">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-slate-100 text-slate-500 text-lg font-bold px-4 py-2 rounded-lg">${index + 1}</div>
+                            <div>
+                                <span class="text-2xl font-black text-slate-800">${item.number}</span>
+                                <div class="text-sm text-slate-800 font-bold">${item.name}</div>
+                                <div class="text-xs text-slate-500 font-medium">${item.service} ${item.dob ? ` &bull; NS: ${item.dob}` : ''}</div>
+                                <div class="text-xs text-red-600 font-bold mt-1 border border-red-200 bg-red-50 inline-block px-2 py-0.5 rounded">Mã DVC: ${item.serviceCode}</div>
+                                ${item.address ? `<div class="text-xs text-slate-400 truncate max-w-[200px]" title="${item.address}">${item.address}</div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            const adminHistoryListEl = document.getElementById('admin-history-list');
+            if (state.historyList.length === 0) {
+                 adminHistoryListEl.innerHTML = `<p class="text-slate-400 text-center mt-4 text-sm italic">Chưa có dữ liệu</p>`;
+            } else {
+                 adminHistoryListEl.innerHTML = state.historyList.map(item => `
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <i class="ph ph-check-circle text-red-600 text-2xl"></i>
+                            <span class="font-black text-slate-700 text-lg">${item.number}</span>
+                        </div>
+                        <span class="text-xs font-bold text-red-700 bg-red-100 px-2 py-1 rounded">Quầy ${item.counter}</span>
+                    </div>
+                `).join('');
+            }
+
+            // 3. Cập nhật Màn hình Điện thoại (Cho user đang xem)
+            if (state.currentServing) {
+                document.getElementById('phone-current-serving').textContent = state.currentServing.number;
+                document.getElementById('phone-current-counter').textContent = "0" + state.currentServing.counter;
+            } else {
+                document.getElementById('phone-current-serving').textContent = "--";
+                document.getElementById('phone-current-counter').textContent = "--";
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lấy số thứ tự</title>
+    <style>
+        /* Thay đổi màu nền ở background-color dưới đây */
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background-color: #e3f2fd; }
+        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        input { padding: 15px; width: 80%; font-size: 16px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 5px; }
+        button { padding: 15px 30px; font-size: 18px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; width: 90%; }
+        button:hover { background-color: #218838; }
+        #result { display: none; }
+        .ticket { font-size: 80px; color: #dc3545; font-weight: bold; margin: 20px 0; }
+
+        /* CSS cho phần Logo và Tên cơ quan */
+        .header { margin-bottom: 25px; border-bottom: 2px solid #0056b3; padding-bottom: 15px; }
+        .logo { width: 90px; height: auto; margin-bottom: 10px; }
+        .agency-name { font-size: 22px; font-weight: bold; color: #0056b3; text-transform: uppercase; margin: 0; line-height: 1.4; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Logo_C%C3%B4ng_an_Nh%C3%A2n_d%C3%A2n_Vi%E1%BB%87t_Nam.svg/120px-Logo_C%C3%B4ng_an_Nh%C3%A2n_d%C3%A2n_Vi%E1%BB%87t_Nam.svg.png" alt="Logo Công an" class="logo">
+            <h1 class="agency-name">Công an phường<br>Buôn Ma Thuột</h1>
+        </div>
+
+        <div id="register-section">
+            <h2>Lấy số thứ tự</h2>
+            <p>Nhấn nút bên dưới để nhận số tự động mà không cần nhập thông tin.</p>
+            <br>
+            <button onclick="register()">Lấy Số Ngay</button>
+        </div>
+
+        <div id="result">
+            <h2>Xin chào, <span id="display-name"></span>!</h2>
+            <p>Số thứ tự của bạn là:</p>
+            <div class="ticket" id="ticket-number"></div>
+            <p>Vui lòng chú ý màn hình Tivi để biết khi đến lượt.</p>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        function register() {
+            // Gửi yêu cầu lấy số với tên mặc định là "Khách hàng"
+            socket.emit('registerTicket', { name: 'Khách hàng', phone: '' });
+        }
+
+        socket.on('ticketIssued', (data) => {
+            document.getElementById('register-section').style.display = 'none';
+            document.getElementById('result').style.display = 'block';
+            
+            document.getElementById('display-name').innerText = data.name;
+            document.getElementById('ticket-number').innerText = data.ticketNumber;
+        });
+    </script>
+</body>
+</html>

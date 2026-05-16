@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Màn hình Tivi - Hệ thống gọi số</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 20px; background-color: #f8f9fa; padding-bottom: 80px; }
+        .serving { font-size: 120px; color: #dc3545; font-weight: bold; margin: 20px; }
+        .qr-code { margin-top: 40px; background: white; padding: 20px; display: inline-block; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .btn { padding: 15px 30px; font-size: 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 30px;}
+        .btn:hover { background: #0056b3; }
+        .recent-list { margin-top: 20px; margin-bottom: 30px; }
+        .recent-item { display: inline-block; background: #e2e3e5; padding: 10px 20px; margin: 0 10px; border-radius: 8px; font-size: 24px; font-weight: bold; color: #6c757d;}
+        
+        @keyframes blinkRed {
+            0%, 100% { opacity: 1; color: #dc3545; }
+            50% { opacity: 0; color: #ff0000; text-shadow: 0 0 30px rgba(255, 0, 0, 0.8); }
+        }
+        .blink-active {
+            animation: blinkRed 0.4s ease-in-out 7; /* Nhấp nháy 7 lần, mỗi lần 0.4 giây */
+        }
+        
+        .footer-marquee {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #0056b3;
+            color: white;
+            font-size: 30px;
+            padding: 15px 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+        }
+
+        /* CSS cho phần Logo và Tên cơ quan trên Tivi */
+        .header { margin-bottom: 30px; border-bottom: 3px solid #0056b3; padding-bottom: 20px; display: flex; justify-content: center; align-items: center; gap: 25px; }
+        .logo { width: 130px; height: auto; }
+        .agency-name { font-size: 45px; font-weight: bold; color: #0056b3; text-transform: uppercase; text-align: left; margin: 0; line-height: 1.2; }
+
+        /* CSS cho phần hiển thị Ngày Giờ */
+        .datetime-display { position: absolute; top: 30px; right: 40px; text-align: right; }
+        .datetime-display .time { font-size: 35px; font-weight: bold; color: #dc3545; margin-bottom: 5px; }
+        .datetime-display .date { font-size: 20px; color: #6c757d; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <!-- Khung hiển thị ngày giờ góc trên phải -->
+    <div class="datetime-display">
+        <div class="time" id="current-time">00:00:00</div>
+        <div class="date" id="current-date">Thứ ..., ngày ... tháng ...</div>
+    </div>
+
+    <div class="header">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Logo_C%C3%B4ng_an_Nh%C3%A2n_d%C3%A2n_Vi%E1%BB%87t_Nam.svg/120px-Logo_C%C3%B4ng_an_Nh%C3%A2n_d%C3%A2n_Vi%E1%BB%87t_Nam.svg.png" alt="Logo Công an" class="logo">
+        <div class="agency-name">Công an phường<br>Buôn Ma Thuột</div>
+    </div>
+
+    <h1>SỐ ĐANG PHỤC VỤ</h1>
+    <div class="serving" id="current-number">0</div>
+    <div style="font-size: 50px; color: #007bff; font-weight: bold; margin-bottom: 30px;" id="current-counter">Quầy: -</div>
+    
+    <div class="recent-list" id="recent-list">
+        <!-- Danh sách các số vừa gọi sẽ được chèn vào đây -->
+    </div>
+
+    <h3>Số đang chờ cấp: <span id="last-number">0</span></h3>
+
+    <div class="qr-code">
+        <p style="font-size: 18px; font-weight: bold;">Quét mã QR để lấy số thứ tự</p>
+        <img id="qr-img" src="" alt="QR Code" width="250">
+    </div>
+
+    <div class="footer-marquee">
+        <marquee id="marquee-text" scrollamount="12">Kính chào quý khách! Vui lòng chuẩn bị sẵn Căn cước công dân và các giấy tờ cần thiết trong lúc chờ đợi để được phục vụ nhanh chóng. Xin cảm ơn!</marquee>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        
+        // Tự động lấy IP hiện tại của trình duyệt để tạo link cho điện thoại
+        const currentHost = window.location.host; 
+        const mobileUrl = `http://${currentHost}/mobile.html`;
+        document.getElementById('qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mobileUrl)}`;
+
+        let currentDisplayedNumber = 0; // Biến lưu lại số đang hiển thị để so sánh
+
+        socket.on('updateQueue', (data) => {
+            // Phát âm thanh nếu số đang phục vụ tăng lên (có lượt gọi mới)
+            if (data.currentServingNumber > currentDisplayedNumber && data.currentServingNumber !== 0) {
+                playAlertSound();
+                setTimeout(() => speakNumber(data.currentServingNumber, data.currentCounter), 1500); // Đợi tiếng chuông kêu xong rồi đọc số
+
+                // Kích hoạt hiệu ứng nhấp nháy
+                const numberElement = document.getElementById('current-number');
+                numberElement.classList.remove('blink-active');
+                void numberElement.offsetWidth; // Mẹo nhỏ: Ép trình duyệt vẽ lại (reflow) để reset animation
+                numberElement.classList.add('blink-active');
+            }
+            currentDisplayedNumber = data.currentServingNumber; // Cập nhật lại số hiện tại
+
+            document.getElementById('current-number').innerText = data.currentServingNumber;
+            document.getElementById('current-counter').innerText = `Quầy: ${data.currentCounter || '-'}`;
+            document.getElementById('last-number').innerText = data.lastIssuedNumber;
+
+            // Cập nhật dòng chữ chạy
+            if (data.marqueeText) {
+                document.getElementById('marquee-text').innerText = data.marqueeText;
+            }
+
+            // Cập nhật danh sách các số vừa gọi (bỏ qua số hiện tại đang hiển thị to)
+            const recentListDiv = document.getElementById('recent-list');
+            recentListDiv.innerHTML = '';
+            if (data.recentCalls && data.recentCalls.length > 1) {
+                let html = '<div style="font-size: 20px; margin-bottom: 10px; font-weight: bold;">Các số vừa gọi:</div>';
+                // Bắt đầu từ index 1 để bỏ qua số mới nhất
+                for (let i = 1; i < data.recentCalls.length; i++) {
+                    const call = data.recentCalls[i];
+                    html += `<div class="recent-item">Số ${call.number} - Quầy ${call.counter}</div>`;
+                }
+                recentListDiv.innerHTML = html;
+            }
+        });
+
+        function playAlertSound() {
+            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/doorbell.ogg');
+            audio.play().catch(err => console.log('Trình duyệt chặn tự động phát âm thanh. Vui lòng click chuột vào màn hình Tivi 1 lần!'));
+        }
+
+        // Biến lưu trữ giọng đọc được chọn
+        let preferredVoice = null;
+
+        // Hàm tải và chọn giọng Tiếng Việt tốt nhất
+        function loadVoices() {
+            const voices = window.speechSynthesis.getVoices();
+            // Ưu tiên tìm giọng của Google Tiếng Việt, nếu không có thì lấy giọng Tiếng Việt bất kỳ
+            preferredVoice = voices.find(voice => voice.lang === 'vi-VN' && voice.name.includes('Google')) 
+                          || voices.find(voice => voice.lang === 'vi-VN' || voice.lang.includes('vi'));
+        }
+
+        if ('speechSynthesis' in window) {
+            loadVoices();
+            // Trình duyệt Chrome tải giọng đọc bất đồng bộ, nên cần lắng nghe sự kiện này
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = loadVoices;
+            }
+        }
+
+        // Hàm đọc giọng nói Tiếng Việt
+        function speakNumber(number, counter) {
+            if ('speechSynthesis' in window) {
+                const text = `Xin mời số ${number}, đến ${counter || 'quầy 1'}.`;
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'vi-VN'; // Thiết lập ngôn ngữ Tiếng Việt
+                
+                if (preferredVoice) {
+                    utterance.voice = preferredVoice; // Gán giọng đọc đã chọn
+                }
+                
+                utterance.rate = 0.85;     // Tốc độ đọc (nhỏ hơn 1 để đọc chậm và rõ hơn)
+                window.speechSynthesis.speak(utterance);
+            } else {
+                console.log('Trình duyệt của bạn không hỗ trợ đọc giọng nói (Text-to-Speech).');
+            }
+        }
+
+        // Hàm cập nhật ngày giờ thực tế mỗi giây
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('current-time').innerText = now.toLocaleTimeString('vi-VN', { hour12: false });
+            document.getElementById('current-date').innerText = now.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'numeric', day: 'numeric' });
+        }
+        
+        setInterval(updateDateTime, 1000);
+        updateDateTime(); // Gọi hàm này ngay lần đầu tiên để cập nhật lập tức
+    </script>
+</body>
+</html>
