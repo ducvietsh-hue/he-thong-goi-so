@@ -307,12 +307,25 @@
                         </div>
                     </div>
 
+                    <!-- Thống kê -->
+                    <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
+                        <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wider border-b border-slate-100 pb-4">
+                            <i class="ph ph-chart-bar text-red-600 text-2xl"></i>
+                            Thống kê thủ tục đã phục vụ
+                        </h3>
+                        <div id="admin-statistics" class="space-y-2">
+                            <!-- Thống kê render ở đây -->
+                        </div>
+                    </div>
+
                     <!-- Lịch sử -->
                     <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200 h-[30%] min-h-[250px] flex flex-col">
-                        <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wider border-b border-slate-100 pb-4">
-                            <i class="ph ph-clock-counter-clockwise text-red-600 text-2xl"></i>
-                            Lịch sử đã phục vụ
-                        </h3>
+                        <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2 uppercase tracking-wider">
+                                <i class="ph ph-clock-counter-clockwise text-red-600 text-2xl"></i>
+                                Lịch sử đã phục vụ
+                            </h3>
+                        </div>
                         <div class="flex-1 overflow-y-auto custom-scroll pr-2 space-y-3" id="admin-history-list">
                             <!-- Lịch sử render ở đây -->
                         </div>
@@ -588,7 +601,7 @@
         }
 
         // --- NGHIỆP VỤ QUÉT CCCD ---
-        let html5QrcodeScanner = null;
+        let html5QrCode = null;
 
         function startCCCDScan() {
             document.getElementById('cccd-scanner-modal').style.display = 'flex';
@@ -599,19 +612,28 @@
                 if (camWarning) camWarning.style.display = 'block';
             }
 
-            if (!html5QrcodeScanner) {
-                html5QrcodeScanner = new Html5QrcodeScanner(
-                    "cccd-reader",
-                    { fps: 10, qrbox: {width: 250, height: 250} },
-                    false
-                );
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("cccd-reader");
             }
-            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+            
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess,
+                onScanFailure
+            ).catch(err => {
+                console.error("Camera start error:", err);
+                alert("Không thể mở Camera sau. Vui lòng kiểm tra quyền truy cập Camera!");
+            });
         }
 
         function closeCCCDScan() {
             document.getElementById('cccd-scanner-modal').style.display = 'none';
-            if (html5QrcodeScanner) html5QrcodeScanner.clear();
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
+                }).catch(err => console.error("Lỗi tắt Camera:", err));
+            }
         }
 
         function onScanSuccess(decodedText, decodedResult) {
@@ -849,6 +871,21 @@
                 }
             } else {
                 select.innerHTML = '<option value="-">Chưa thiết lập quầy</option>';
+            }
+
+            // Cập nhật Thống kê
+            const statsContainer = document.getElementById('admin-statistics');
+            if (statsContainer) {
+                if (!state.stats || Object.keys(state.stats).length === 0) {
+                    statsContainer.innerHTML = '<p class="text-sm text-slate-500 italic">Chưa có giao dịch nào hoàn thành.</p>';
+                } else {
+                    statsContainer.innerHTML = Object.keys(state.stats).map(service => `
+                        <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <span class="text-sm font-bold text-slate-700">${service}</span>
+                            <span class="bg-red-100 text-red-700 font-black px-3 py-1 rounded-full text-sm">${state.stats[service]}</span>
+                        </div>
+                    `).join('');
+                }
             }
 
             // 2. Cập nhật Màn hình Admin
