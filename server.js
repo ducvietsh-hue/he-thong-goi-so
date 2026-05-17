@@ -57,6 +57,7 @@ let state = {
     historyList: [],
     skippedList: [],
     stats: {},
+    counterStats: {},
     currentServing: null,
     nextNumberToIssue: 1,
     marqueeText: 'Kính chào công dân! Vui lòng chuẩn bị sẵn Căn cước công dân và các giấy tờ cần thiết trong lúc chờ đợi để được phục vụ nhanh chóng. Xin cảm ơn!',
@@ -77,6 +78,7 @@ async function loadState() {
             state = { ...state, ...cloudState }; // Gộp dữ liệu để không mất các biến mặc định
             state.stats = state.stats || {};
             state.skippedList = state.skippedList || [];
+            state.counterStats = state.counterStats || {};
             console.log('☁️ [Firebase] Đã tải dữ liệu thành công từ đám mây.');
             return;
         }
@@ -92,6 +94,7 @@ async function loadState() {
             state = { ...state, ...localState }; // Gộp dữ liệu để không mất các biến mặc định
             state.stats = state.stats || {};
             state.skippedList = state.skippedList || [];
+            state.counterStats = state.counterStats || {};
             console.log('📁 [Local] Đã tải dữ liệu dự phòng từ máy chủ nội bộ.');
         }
     } catch (err) {
@@ -111,6 +114,32 @@ function saveState() {
         setDoc(doc(db, "queueSystem", "currentState"), state).catch(e => console.error('⚠️ [Lỗi Firebase]', e.message));
     } catch (err) {
         console.error('⚠️ [Lỗi Firebase] Firebase chưa được khởi tạo đúng cách:', err.message);
+    }
+}
+
+// -----------------------------------------
+// TÍCH HỢP ZALO ZNS (Thông báo qua Zalo)
+// -----------------------------------------
+async function sendZaloNotification(phone, name, number) {
+    try {
+        const ZALO_ACCESS_TOKEN = "YOUR_ZALO_ACCESS_TOKEN";
+        const TEMPLATE_ID = "YOUR_TEMPLATE_ID";
+        
+        let formattedPhone = phone.replace(/\D/g, '');
+        if (formattedPhone.startsWith('0')) formattedPhone = '84' + formattedPhone.substring(1);
+
+        /* BỎ COMMENT ĐOẠN DƯỚI ĐÂY KHI CÓ TOKEN THẬT TỪ ZALO
+        const response = await fetch("https://business.openapi.zalo.me/message/template", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "access_token": ZALO_ACCESS_TOKEN },
+            body: JSON.stringify({ phone: formattedPhone, template_id: TEMPLATE_ID, template_data: { name, number } })
+        });
+        const result = await response.json();
+        */
+        
+        console.log(`[ZALO ZNS - MÔ PHỎNG] Đã gửi thông báo cho ${formattedPhone}: "Chào ${name}, sắp đến lượt bạn (Số ${number})."`);
+    } catch (error) {
+        console.error("[ZALO ZNS] Lỗi:", error.message);
     }
 }
 
@@ -160,7 +189,9 @@ io.on('connection', (socket) => {
         
         console.log(`[Ticket] Khách hàng ${userData.name} lấy số: ${newTicket.number}`);
         socket.emit('ticketIssued', newTicket);
-        io.emit('updateQueue', state);
+        
+        // TỐI ƯU HIỆU NĂNG: Chỉ gửi event vé mới thay vì toàn bộ hệ thống
+        io.emit('ticketAdded', newTicket);
     });
 
     socket.on('callNext', (data) => {
@@ -177,6 +208,13 @@ io.on('connection', (socket) => {
             const serviceType = state.currentServing.service;
             state.stats[serviceType] = (state.stats[serviceType] || 0) + 1;
 
+            // Thống kê số lượng khách đã phục vụ theo từng Quầy
+            if (!state.counterStats) state.counterStats = {};
+            const servedByCounter = state.currentServing.counter;
+            if (servedByCounter) {
+                state.counterStats[servedByCounter] = (state.counterStats[servedByCounter] || 0) + 1;
+            }
+
             // LƯU VĨNH VIỄN LỊCH SỬ GIAO DỊCH LÊN FIREBASE ĐỂ LÀM BÁO CÁO
             try {
                 addDoc(collection(db, "historyLogs"), {
@@ -191,6 +229,15 @@ io.on('connection', (socket) => {
             counter: data.counterId,
             callTime: new Date().toISOString()
         };
+
+        // NÂNG CẤP: Gửi thông báo Zalo cho người thứ 3 trong hàng đợi
+        if (state.waitingList.length >= 3) {
+            const citizenToNotify = state.waitingList[2];
+            if (citizenToNotify.phone && !citizenToNotify.isNotified) {
+                sendZaloNotification(citizenToNotify.phone, citizenToNotify.name, citizenToNotify.number);
+                citizenToNotify.isNotified = true; // Đánh dấu để tránh spam nhiều lần
+            }
+        }
 
         saveState();
         console.log(`[Call] Gọi số: ${state.currentServing.number} tại Quầy ${data.counterId}`);
@@ -222,6 +269,13 @@ io.on('connection', (socket) => {
                 if (!state.stats) state.stats = {};
                 const serviceType = state.currentServing.service;
                 state.stats[serviceType] = (state.stats[serviceType] || 0) + 1;
+
+                // Thống kê số lượng khách đã phục vụ theo từng Quầy
+                if (!state.counterStats) state.counterStats = {};
+                const servedByCounter = state.currentServing.counter;
+                if (servedByCounter) {
+                    state.counterStats[servedByCounter] = (state.counterStats[servedByCounter] || 0) + 1;
+                }
             }
 
             state.currentServing = {
@@ -232,6 +286,18 @@ io.on('connection', (socket) => {
 
             saveState();
             console.log(`[Recall] Gọi lại số: ${state.currentServing.number} tại Quầy ${data.counterId}`);
+            io.emit('updateQueue', state);
+        }
+    });
+
+    // Xử lý sự kiện Ưu tiên (Đẩy số lên đầu danh sách)
+    socket.on('prioritizeTicket', (number) => {
+        const index = state.waitingList.findIndex(c => c.number === number);
+        if (index > 0) { // Nếu index == 0 thì đã ở đầu rồi, không cần đổi
+            const ticket = state.waitingList.splice(index, 1)[0];
+            state.waitingList.unshift(ticket);
+            saveState();
+            console.log(`[Priority] Đã đẩy số ${number} lên đầu danh sách chờ.`);
             io.emit('updateQueue', state);
         }
     });
@@ -266,7 +332,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('resetSystem', async () => {
-        state = { waitingList: [], historyList: [], skippedList: [], stats: {}, currentServing: null, nextNumberToIssue: 1, marqueeText: state.marqueeText, counters: state.counters };
+        state = { waitingList: [], historyList: [], skippedList: [], stats: {}, counterStats: {}, currentServing: null, nextNumberToIssue: 1, marqueeText: state.marqueeText, counters: state.counters };
         saveState();
         
         // Xóa toàn bộ lịch sử trên Firebase khi Cán bộ bấm reset thủ công
@@ -290,7 +356,7 @@ io.on('connection', (socket) => {
 
 // Lên lịch tự động reset dữ liệu vào 00:00 mỗi ngày theo giờ Việt Nam
 cron.schedule('0 0 * * *', async () => {
-    state = { waitingList: [], historyList: [], skippedList: [], stats: {}, currentServing: null, nextNumberToIssue: 1, marqueeText: state.marqueeText, counters: state.counters };
+    state = { waitingList: [], historyList: [], skippedList: [], stats: {}, counterStats: {}, currentServing: null, nextNumberToIssue: 1, marqueeText: state.marqueeText, counters: state.counters };
     saveState();
     
     // Tự động xóa toàn bộ lịch sử trên Firebase vào nửa đêm
