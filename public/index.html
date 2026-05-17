@@ -73,8 +73,37 @@
             100% { transform: translateX(-100%); }
         }
     </style>
+    
+    <!-- Firebase SDK (Dành cho Web Client) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
+        import { getDatabase } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCSGXe3sGOjhroFUmYaMSiiLQ0OYmVXCs0",
+            authDomain: "laysothutuchanhchinh.firebaseapp.com",
+            projectId: "laysothutuchanhchinh",
+            storageBucket: "laysothutuchanhchinh.firebasestorage.app",
+            messagingSenderId: "78960955255",
+            appId: "1:78960955255:web:16f8bd1dfcbc1c71dd1b72",
+            measurementId: "G-89P40QKP46"
+        };
+
+        // Khởi tạo Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const database = getDatabase(app);
+        
+        console.log("Firebase Web Client đã được kết nối!");
+    </script>
 </head>
 <body class="bg-slate-900 text-slate-800 overflow-hidden h-screen w-screen selection:bg-red-500 selection:text-white">
+
+    <!-- THANH CẢNH BÁO MẤT KẾT NỐI MẠNG -->
+    <div id="network-status" class="fixed top-0 left-0 right-0 bg-red-600 text-white text-center py-2 font-bold z-[999] transform -translate-y-full transition-transform duration-300 shadow-md flex items-center justify-center gap-2">
+        <i class="ph ph-wifi-slash text-xl animate-pulse"></i> Mất kết nối đến máy chủ. Hệ thống đang tự động thử kết nối lại...
+    </div>
 
     <div id="app" class="relative w-full h-full">
 
@@ -368,12 +397,26 @@
                 <div class="w-full lg:w-[40%] 2xl:w-[35%] lg:min-w-[320px] flex flex-col gap-4 lg:gap-6">
                     <!-- Danh sách chờ -->
                     <div class="flex-1 flex flex-col bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden min-h-[350px]">
-                        <div class="bg-slate-50 p-6 border-b border-slate-200 flex justify-between items-center shadow-sm z-10">
-                            <h3 class="font-black text-slate-800 uppercase tracking-wider text-xl flex items-center gap-2">
-                                <i class="ph ph-list-numbers text-red-600 text-2xl"></i>
-                                Danh Sách Đang Chờ
-                            </h3>
-                            <span id="admin-waiting-count" class="bg-red-100 text-red-700 px-4 py-1.5 rounded-full text-lg font-black shadow-inner border border-red-200">0</span>
+                        <div class="bg-slate-50 p-6 border-b border-slate-200 flex flex-col gap-4 shadow-sm z-10">
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-black text-slate-800 uppercase tracking-wider text-xl flex items-center gap-2">
+                                    <i class="ph ph-list-numbers text-red-600 text-2xl"></i>
+                                    Danh Sách Đang Chờ
+                                </h3>
+                                <span id="admin-waiting-count" class="bg-red-100 text-red-700 px-4 py-1.5 rounded-full text-lg font-black shadow-inner border border-red-200">0</span>
+                            </div>
+                            <!-- Thanh tìm kiếm & Lọc theo thủ tục -->
+                            <div class="flex gap-2">
+                                <input type="text" id="admin-search-input" oninput="renderUI()" placeholder="Tìm tên, số vé, mã DVC..." class="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500 transition-colors">
+                                <select id="admin-filter-service" onchange="renderUI()" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500 transition-colors max-w-[170px] cursor-pointer">
+                                    <option value="">Tất cả thủ tục</option>
+                                    <option value="Đăng ký cư trú">Đăng ký cư trú</option>
+                                    <option value="Căn cước công dân">Căn cước công dân</option>
+                                    <option value="Đăng ký phương tiện">Đăng ký phương tiện</option>
+                                    <option value="Định danh điện tử">Cấp định danh điện tử</option>
+                                    <option value="Khác">Thủ tục khác</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="flex-1 overflow-y-auto custom-scroll p-4 bg-slate-50/50" id="admin-waiting-list">
                             <!-- Danh sách chờ render ở đây -->
@@ -423,7 +466,7 @@
                 </div>
 
                 <!-- Phone Content: Chưa lấy số (Form) -->
-                <div id="phone-form-view" class="flex-1 px-6 pt-8 pb-10 flex flex-col gap-6 -mt-6 relative z-20">
+                <form id="phone-form-view" onsubmit="handleTakeNumber(event)" class="flex-1 px-6 pt-8 pb-10 flex flex-col gap-6 -mt-6 relative z-20">
                     <div class="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 flex-1 flex flex-col gap-5">
                         <!-- Nút quét CCCD -->
                         <button type="button" onclick="startCCCDScan()" class="w-full bg-slate-800 hover:bg-slate-700 text-white rounded-2xl py-3 font-bold text-base transition-all flex items-center justify-center gap-2 mb-2 shadow-md">
@@ -432,47 +475,47 @@
 
                         <div class="flex flex-col gap-1.5">
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Họ và tên của bạn <span class="text-red-500">*</span></label>
-                            <input type="text" id="phone-input-name" placeholder="Ví dụ: Nguyễn Văn A" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base">
+                            <input type="text" id="phone-input-name" required placeholder="Ví dụ: Nguyễn Văn A" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base">
                         </div>
 
                         <div class="flex flex-col gap-1.5">
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Ngày sinh <span class="text-red-500">*</span></label>
-                            <input type="text" id="phone-input-dob" placeholder="dd/mm/yyyy" maxlength="10" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base">
+                            <input type="text" id="phone-input-dob" required placeholder="dd/mm/yyyy" maxlength="10" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base">
                         </div>
 
                         <div class="flex flex-col gap-1.5">
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Nơi thường trú <span class="text-red-500">*</span></label>
-                            <textarea id="phone-input-address" rows="2" placeholder="Tự động điền khi quét CCCD..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-sm"></textarea>
+                            <textarea id="phone-input-address" required rows="2" placeholder="Tự động điền khi quét CCCD..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-sm"></textarea>
                         </div>
 
                         <div class="flex flex-col gap-1.5">
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Số điện thoại <span class="text-red-500">*</span></label>
-                            <input type="tel" id="phone-input-phone" placeholder="Ví dụ: 0912345678" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base">
+                            <input type="tel" id="phone-input-phone" required placeholder="Ví dụ: 0912345678" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base">
                         </div>
 
                         <div class="flex flex-col gap-1.5">
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Lĩnh vực cần giải quyết</label>
-                            <select id="phone-input-service" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base appearance-none cursor-pointer">
+                            <select id="phone-input-service" onchange="handleServiceChange()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base appearance-none cursor-pointer">
                                 <option value="Đăng ký cư trú">Đăng ký cư trú (Thường trú, Tạm trú)</option>
-                                <option value="Căn cước công dân">Cấp, đổi Căn cước công dân</option>
+                                <option value="Căn cước công dân">Cấp mới, cấp đổi Căn cước công dân</option>
                                 <option value="Đăng ký phương tiện">Đăng ký phương tiện giao thông</option>
-                                <option value="PCCC & ANTT">Thủ tục PCCC & An ninh trật tự</option>
+                                <option value="Định danh điện tử">Cấp định danh điện tử</option>
                                 <option value="Khác">Các thủ tục khác</option>
                             </select>
                         </div>
 
-                        <div class="flex flex-col gap-1.5">
+                        <div id="phone-input-service-code-container" class="flex flex-col gap-1.5">
                             <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Mã hồ sơ dịch vụ công <span class="text-red-500">*</span></label>
-                            <input type="text" id="phone-input-service-code" placeholder="Nhập mã hồ sơ DVC trực tuyến..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base">
+                            <input type="text" id="phone-input-service-code" required placeholder="Nhập mã hồ sơ DVC trực tuyến..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base">
                         </div>
                         
                         <div class="mt-auto pt-4">
-                            <button onclick="handleTakeNumber()" class="w-full bg-red-600 hover:bg-red-700 text-white rounded-xl py-3.5 font-black text-lg shadow-lg shadow-red-500/30 transition-all active:scale-95 uppercase tracking-widest flex items-center justify-center gap-2">
+                            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white rounded-xl py-3.5 font-black text-lg shadow-lg shadow-red-500/30 transition-all active:scale-95 uppercase tracking-widest flex items-center justify-center gap-2">
                                 Nhận số thứ tự <i class="ph ph-arrow-right-bold"></i>
                             </button>
                         </div>
                     </div>
-                </div>
+                </form>
 
                 <!-- Phone Content: Đã lấy số (Ticket) -->
                 <div id="phone-ticket-view" class="hidden flex-1 px-6 py-8 flex-col items-center justify-center relative z-20 -mt-6">
@@ -501,6 +544,15 @@
                             <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-100">
                                 <span class="text-slate-500 text-sm">Thời gian lấy số:</span>
                                 <span id="phone-my-timestamp" class="font-bold text-slate-800 text-right">--</span>
+                            </div>
+                        </div>
+
+                        <!-- Cảnh báo sắp đến lượt (Sẽ hiện khi còn <= 3 người) -->
+                        <div id="phone-turn-warning" class="hidden bg-yellow-100 border border-yellow-300 text-yellow-800 p-4 rounded-2xl mb-6 flex flex-col items-center justify-center gap-2 relative z-10 shadow-sm animate-pulse text-center">
+                            <i class="ph ph-warning-circle text-3xl shrink-0"></i>
+                            <div>
+                                <h4 class="font-bold text-sm">Sắp đến lượt của bạn!</h4>
+                                <p class="text-xs mt-1">Phía trước chỉ còn vài người. Vui lòng chuẩn bị hồ sơ và di chuyển đến khu vực chờ.</p>
                             </div>
                         </div>
 
@@ -582,6 +634,27 @@
             prevServing = state.currentServing;
             
             renderUI();
+        });
+
+        // --- TỐI ƯU PERFORMANCE: Lắng nghe sự kiện cập nhật từng phần (Thay vì nhận toàn bộ mảng) ---
+        socket.on('ticketAdded', (newTicket) => {
+            state.waitingList.push(newTicket);
+            renderUI();
+        });
+
+        socket.on('ticketRemoved', (ticketNumber) => {
+            state.waitingList = state.waitingList.filter(t => t.number !== ticketNumber);
+            renderUI();
+        });
+        // ------------------------------------------------------------------------------------------
+
+        // Lắng nghe sự kiện mất kết nối mạng
+        socket.on('disconnect', () => {
+            document.getElementById('network-status').classList.remove('-translate-y-full');
+        });
+
+        socket.on('connect', () => {
+            document.getElementById('network-status').classList.add('-translate-y-full');
         });
 
         socket.on('ticketIssued', (ticket) => {
@@ -886,7 +959,9 @@
         function onScanFailure(error) { /* Bỏ qua lỗi khung hình rỗng */ }
 
         // --- NGHIỆP VỤ LÕI (Gửi lệnh lên server) ---
-        function handleTakeNumber() {
+        function handleTakeNumber(e) {
+            if (e) e.preventDefault(); // Ngăn trình duyệt tải lại trang khi submit
+            
             const nameInput = document.getElementById('phone-input-name').value.trim();
             const phoneInput = document.getElementById('phone-input-phone').value.trim();
             const dobInput = document.getElementById('phone-input-dob').value;
@@ -894,12 +969,9 @@
             const serviceInput = document.getElementById('phone-input-service').value;
             const serviceCodeInput = document.getElementById('phone-input-service-code').value.trim();
             
-            if (!nameInput) return alert("Vui lòng nhập họ và tên của bạn!");
-            if (!phoneInput) return alert("Vui lòng nhập số điện thoại của bạn!");
-            if (!dobInput) return alert("Vui lòng nhập ngày sinh!");
-            if (!addressInput) return alert("Vui lòng nhập nơi thường trú!");
-            if (!serviceCodeInput) return alert("Vui lòng nhập Mã hồ sơ Dịch vụ công!");
-            if (serviceCodeInput.length !== 26) return alert("Mã hồ sơ Dịch vụ công chưa đúng định dạng (Ví dụ: G01.883.801.013-230713-0005)!");
+            if (serviceInput !== 'Định danh điện tử' && serviceInput !== 'Khác') {
+                if (serviceCodeInput.length !== 26) return alert("Mã hồ sơ Dịch vụ công chưa đúng định dạng (Ví dụ: G01.883.801.013-230713-0005)!");
+            }
             
             socket.emit('registerTicket', { 
                 name: nameInput, 
@@ -907,7 +979,7 @@
                 dob: dobInput,
                 address: addressInput,
                 service: serviceInput,
-                serviceCode: serviceCodeInput 
+                serviceCode: serviceCodeInput || 'Không yêu cầu'
             });
         }
 
@@ -918,8 +990,25 @@
             document.getElementById('phone-input-dob').value = '';
             document.getElementById('phone-input-address').value = '';
             document.getElementById('phone-input-service-code').value = '';
+            document.getElementById('phone-input-service').value = 'Đăng ký cư trú';
+            handleServiceChange();
             document.getElementById('phone-form-view').style.display = 'flex';
             document.getElementById('phone-ticket-view').style.display = 'none';
+        }
+
+        function handleServiceChange() {
+            const serviceInput = document.getElementById('phone-input-service').value;
+            const serviceCodeContainer = document.getElementById('phone-input-service-code-container');
+            const serviceCodeField = document.getElementById('phone-input-service-code');
+            
+            if (serviceInput === 'Định danh điện tử' || serviceInput === 'Khác') {
+                serviceCodeContainer.style.display = 'none';
+                serviceCodeField.required = false;
+                serviceCodeField.value = '';
+            } else {
+                serviceCodeContainer.style.display = 'flex';
+                serviceCodeField.required = true;
+            }
         }
 
         function callNextNumber() {
@@ -1341,7 +1430,9 @@
             if (state.historyList.length === 0) {
                  adminHistoryListEl.innerHTML = `<p class="text-slate-400 text-center mt-4 text-sm italic">Chưa có dữ liệu</p>`;
             } else {
-                 adminHistoryListEl.innerHTML = state.historyList.map(item => `
+                 // Tối ưu Performance UI: Chỉ render 50 phần tử gần nhất trong Lịch sử và đảo ngược để đưa mục mới nhất lên đầu
+                 const renderHistory = [...state.historyList].reverse().slice(0, 50);
+                 adminHistoryListEl.innerHTML = renderHistory.map(item => `
                     <div onclick="showCitizenDetails(${item.number})" class="bg-slate-50 hover:bg-red-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center cursor-pointer transition-colors" title="Xem chi tiết">
                         <div class="flex items-center gap-3">
                             <i class="ph ph-check-circle text-red-600 text-2xl"></i>
@@ -1406,6 +1497,19 @@
             }
 
             // 3. Cập nhật Màn hình Điện thoại (Cho user đang xem)
+            if (myTicket) {
+                const myIndex = state.waitingList.findIndex(t => t.number === myTicket.number);
+                const warningEl = document.getElementById('phone-turn-warning');
+                if (warningEl) {
+                    // Hiện cảnh báo UI khi mình nằm trong top 3 người đầu tiên
+                    if (myIndex !== -1 && myIndex <= 3) {
+                        warningEl.classList.remove('hidden');
+                    } else {
+                        warningEl.classList.add('hidden');
+                    }
+                }
+            }
+
             if (state.currentServing) {
                 document.getElementById('phone-current-serving').textContent = formatNumber(state.currentServing.number);
                 const activeCounter = state.counters?.find(c => c.id === state.currentServing.counter);
