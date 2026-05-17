@@ -49,9 +49,10 @@ const ADMIN_PASSWORD = 'Abc@123';
 let state = {
     waitingList: [],
     historyList: [],
+    skippedList: [],
     stats: {},
     currentServing: null,
-    nextNumberToIssue: 1001,
+    nextNumberToIssue: 1,
     marqueeText: 'Kính chào công dân! Vui lòng chuẩn bị sẵn Căn cước công dân và các giấy tờ cần thiết trong lúc chờ đợi để được phục vụ nhanh chóng. Xin cảm ơn!',
     counters: [
         { id: '1', name: 'Quầy 01', rank: '', staff: '' },
@@ -69,6 +70,7 @@ async function loadState() {
             const cloudState = docSnap.data();
             state = { ...state, ...cloudState }; // Gộp dữ liệu để không mất các biến mặc định
             state.stats = state.stats || {};
+            state.skippedList = state.skippedList || [];
             console.log('☁️ [Firebase] Đã tải dữ liệu thành công từ đám mây.');
             return;
         }
@@ -83,6 +85,7 @@ async function loadState() {
             const localState = JSON.parse(data);
             state = { ...state, ...localState }; // Gộp dữ liệu để không mất các biến mặc định
             state.stats = state.stats || {};
+            state.skippedList = state.skippedList || [];
             console.log('📁 [Local] Đã tải dữ liệu dự phòng từ máy chủ nội bộ.');
         }
     } catch (err) {
@@ -119,6 +122,17 @@ io.on('connection', (socket) => {
     });
 
     socket.on('registerTicket', (userData) => {
+        // Kiểm tra xem Mã hồ sơ DVC đã tồn tại trong danh sách chờ hoặc lịch sử chưa
+        if (userData.serviceCode) {
+            const isDuplicate = state.waitingList.some(ticket => ticket.serviceCode === userData.serviceCode) ||
+                                state.historyList.some(ticket => ticket.serviceCode === userData.serviceCode);
+
+            if (isDuplicate) {
+                socket.emit('registrationError', 'Mã hồ sơ này đã được lấy số rồi! Vui lòng kiểm tra lại.');
+                return;
+            }
+        }
+
         const newTicket = {
             number: state.nextNumberToIssue++,
             name: userData.name,
@@ -171,6 +185,56 @@ io.on('connection', (socket) => {
         io.emit('updateQueue', state);
     });
 
+    // Xử lý sự kiện Cán bộ báo vắng mặt (Bỏ qua số hiện tại)
+    socket.on('skipCurrent', () => {
+        if (state.currentServing) {
+            state.skippedList.push(state.currentServing);
+            console.log(`[Skip] Đã chuyển số ${state.currentServing.number} vào danh sách vắng mặt.`);
+            state.currentServing = null;
+            saveState();
+            io.emit('updateQueue', state);
+        }
+    });
+
+    // Xử lý sự kiện Cán bộ gọi lại người đã vắng mặt
+    socket.on('recallCitizen', (data) => {
+        const citizenIndex = state.skippedList.findIndex(c => c.number === data.number);
+        if (citizenIndex !== -1) {
+            const recalledCitizen = state.skippedList.splice(citizenIndex, 1)[0];
+            
+            // Đẩy người đang phục vụ hiện tại (nếu có) vào lịch sử
+            if (state.currentServing) {
+                state.historyList.unshift(state.currentServing);
+                if (state.historyList.length > 20) state.historyList.pop();
+                
+                if (!state.stats) state.stats = {};
+                const serviceType = state.currentServing.service;
+                state.stats[serviceType] = (state.stats[serviceType] || 0) + 1;
+            }
+
+            state.currentServing = {
+                ...recalledCitizen,
+                counter: data.counterId,
+                callTime: new Date().toISOString()
+            };
+
+            saveState();
+            console.log(`[Recall] Gọi lại số: ${state.currentServing.number} tại Quầy ${data.counterId}`);
+            io.emit('updateQueue', state);
+        }
+    });
+
+    // Xử lý sự kiện Xóa người vắng mặt khỏi danh sách
+    socket.on('deleteSkippedTicket', (number) => {
+        const citizenIndex = state.skippedList.findIndex(c => c.number === number);
+        if (citizenIndex !== -1) {
+            state.skippedList.splice(citizenIndex, 1);
+            saveState();
+            console.log(`[Delete] Đã xóa số ${number} khỏi danh sách vắng mặt.`);
+            io.emit('updateQueue', state);
+        }
+    });
+
     socket.on('updateMarquee', (data) => {
         if (data && data.text) {
             state.marqueeText = data.text;
@@ -189,9 +253,20 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('resetSystem', () => {
-        state = { waitingList: [], historyList: [], stats: {}, currentServing: null, nextNumberToIssue: 1001, marqueeText: state.marqueeText, counters: state.counters };
+    socket.on('resetSystem', async () => {
+        state = { waitingList: [], historyList: [], skippedList: [], stats: {}, currentServing: null, nextNumberToIssue: 1, marqueeText: state.marqueeText, counters: state.counters };
         saveState();
+        
+        // Xóa toàn bộ lịch sử trên Firebase khi Cán bộ bấm reset thủ công
+        try {
+            const querySnapshot = await getDocs(collection(db, "historyLogs"));
+            querySnapshot.forEach((document) => {
+                deleteDoc(doc(db, "historyLogs", document.id)).catch(()=>{});
+            });
+        } catch (err) {
+            console.error('⚠️ [Lỗi Firebase] Xóa lịch sử thất bại:', err.message);
+        }
+
         console.log(`[Reset] Hệ thống đã được làm mới về 0 bởi thiết bị: ${socket.id}`);
         io.emit('updateQueue', state);
     });
@@ -206,9 +281,21 @@ function scheduleMidnightReset() {
     const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
     const timeToMidnight = nextMidnight.getTime() - now.getTime();
 
-    setTimeout(() => {
-        state = { waitingList: [], historyList: [], stats: {}, currentServing: null, nextNumberToIssue: 1001, marqueeText: state.marqueeText, counters: state.counters };
+    setTimeout(async () => {
+        state = { waitingList: [], historyList: [], skippedList: [], stats: {}, currentServing: null, nextNumberToIssue: 1, marqueeText: state.marqueeText, counters: state.counters };
         saveState();
+        
+        // Tự động xóa toàn bộ lịch sử trên Firebase vào nửa đêm
+        try {
+            const querySnapshot = await getDocs(collection(db, "historyLogs"));
+            querySnapshot.forEach((document) => {
+                deleteDoc(doc(db, "historyLogs", document.id)).catch(()=>{});
+            });
+            console.log('☁️ [Firebase] Đã tự động dọn dẹp lịch sử (historyLogs) lúc nửa đêm.');
+        } catch (err) {
+            console.error('⚠️ [Lỗi Firebase] Dọn dẹp lịch sử thất bại:', err.message);
+        }
+
         console.log('[Auto-Reset] Hệ thống đã tự động làm mới về 0 vào lúc nửa đêm.');
         io.emit('updateQueue', state);
         scheduleMidnightReset();
