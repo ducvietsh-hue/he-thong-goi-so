@@ -248,22 +248,22 @@
         <!-- ==================== MÀN HÌNH QUẢN TRỊ QUẦY ==================== -->
         <div id="screen-admin" class="absolute inset-0 hidden flex flex-col bg-slate-100">
             <!-- Header Admin -->
-            <div class="bg-slate-800 text-white p-5 shadow-md flex justify-between items-center z-10 border-b-[3px] border-red-600">
-                <div class="flex items-center gap-4">
+            <div class="bg-slate-800 text-white p-4 lg:p-5 shadow-md flex flex-col md:flex-row justify-between items-center gap-4 z-10 border-b-[3px] border-red-600">
+                <div class="flex items-center justify-center gap-4 w-full md:w-auto">
                     <img src="logo.png" alt="Logo" class="w-12 h-12 p-1.5 bg-yellow-50 object-contain shrink-0 rounded-full shadow-md">
-                    <div>
+                    <div class="text-center md:text-left">
                         <h1 class="text-2xl font-bold uppercase tracking-wider text-yellow-500">Bảng Điều Khiển Cán Bộ</h1>
                         <p class="text-slate-300 text-sm font-medium uppercase tracking-widest">Công an phường Buôn Ma Thuột</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-6">
+                <div class="flex flex-wrap items-center justify-center gap-4 lg:gap-6 w-full md:w-auto">
                     <div class="flex items-center gap-3 bg-slate-700 p-2 rounded-xl border border-slate-600">
                         <span class="text-sm text-slate-300 font-medium ml-2 uppercase tracking-wider">Chọn Quầy:</span>
                         <select id="admin-counter-select" class="bg-slate-900 text-yellow-400 font-bold border border-slate-600 rounded-lg px-4 py-2 outline-none text-lg cursor-pointer">
                         </select>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="toggleFullScreen()" title="Toàn màn hình" class="bg-slate-700 hover:bg-slate-600 p-3 rounded-xl transition-colors border border-slate-600">
+                        <button onclick="toggleFullScreen()" title="Toàn màn hình" class="bg-slate-700 hover:bg-slate-600 p-3 rounded-xl transition-colors border border-slate-600 hidden md:block">
                             <i class="ph ph-corners-out text-xl text-slate-300"></i>
                         </button>
                         <button onclick="switchScreen('screen-select-mode'); isAdminLoggedIn=false;" title="Đăng xuất" class="bg-red-500/20 hover:bg-red-500/40 p-3 rounded-xl transition-colors border border-red-500/30">
@@ -274,25 +274,25 @@
             </div>
 
             <!-- Content Admin -->
-            <div class="flex-1 flex p-6 gap-6 overflow-hidden bg-slate-200">
+            <div class="flex-1 flex flex-col lg:flex-row p-4 lg:p-6 gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden bg-slate-200">
                 
                 <!-- Bảng điều khiển (Trái) -->
-                <div class="flex-1 flex flex-col gap-6 overflow-y-auto custom-scroll pr-2">
+                <div class="flex-1 flex flex-col gap-4 lg:gap-6 lg:overflow-y-auto custom-scroll lg:pr-2">
                     <!-- Gọi số -->
-                    <div class="bg-white p-8 rounded-3xl shadow-lg border border-slate-200 text-center flex flex-col justify-center flex-1">
+                    <div class="bg-white p-6 lg:p-8 rounded-3xl shadow-lg border border-slate-200 text-center flex flex-col justify-center flex-1 min-h-[320px]">
                         <h2 class="text-slate-500 font-bold uppercase tracking-widest mb-4">Đang phục vụ số</h2>
-                        <div id="admin-current-serving" class="text-[7rem] xl:text-[10rem] 2xl:text-[12rem] leading-none font-black text-red-600 mb-6 2xl:mb-10 drop-shadow-md font-mono">
+                        <div id="admin-current-serving" class="text-[6rem] lg:text-[8rem] xl:text-[10rem] 2xl:text-[12rem] leading-none font-black text-red-600 mb-6 2xl:mb-10 drop-shadow-md font-mono">
                             --
                         </div>
                         
-                        <div class="flex gap-3 justify-center px-8">
-                            <button id="btn-call-next" onclick="callNextNumber()" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-5 px-6 rounded-2xl font-black shadow-xl shadow-red-500/30 transition-all active:scale-95 flex items-center justify-center gap-3 text-2xl uppercase tracking-wider">
+                        <div class="flex flex-col sm:flex-row gap-3 justify-center px-2 lg:px-8">
+                            <button id="btn-call-next" onclick="callNextNumber()" class="flex-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-5 px-6 rounded-2xl font-black shadow-xl shadow-red-500/30 transition-all active:scale-95 flex items-center justify-center gap-3 text-xl lg:text-2xl uppercase tracking-wider">
                                 <i class="ph ph-megaphone text-4xl"></i>
                                 GỌI SỐ TIẾP
                             </button>
-                            <button id="btn-skip-current" onclick="skipCurrentNumber()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 py-5 px-4 rounded-2xl font-bold transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shadow-md border border-slate-200">
+                            <button id="btn-skip-current" onclick="skipCurrentNumber()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 lg:py-5 px-4 rounded-2xl font-bold transition-all active:scale-95 flex flex-row sm:flex-col items-center justify-center gap-2 shadow-md border border-slate-200">
                                 <i class="ph ph-user-minus text-3xl text-orange-500"></i>
-                                <span class="uppercase tracking-wider text-[11px]">Vắng mặt</span>
+                                <span class="uppercase tracking-wider text-sm sm:text-[11px]">Vắng mặt</span>
                             </button>
                         </div>
                         <p class="text-slate-400 mt-6 text-sm italic">* Số sẽ được phát loa và hiển thị lên màn hình Tivi</p>
@@ -304,9 +304,9 @@
                             <i class="ph ph-text-aa text-red-600 text-2xl"></i>
                             Câu thông báo chạy trên Tivi
                         </h3>
-                        <div class="flex gap-3">
+                        <div class="flex flex-col sm:flex-row gap-3">
                             <input type="text" id="admin-marquee-input" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800" placeholder="Nhập nội dung thông báo...">
-                            <button onclick="updateMarquee()" class="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-xl font-bold transition-colors whitespace-nowrap">Cập nhật</button>
+                            <button onclick="updateMarquee()" class="bg-slate-800 hover:bg-slate-700 text-white w-full sm:w-auto px-6 py-3 rounded-xl font-bold transition-colors whitespace-nowrap">Cập nhật</button>
                         </div>
                     </div>
 
@@ -319,9 +319,9 @@
                         <p class="text-sm text-slate-500 mb-4">Cập nhật cấp bậc, họ tên cán bộ để hiển thị lên màn hình Tivi cho công dân biết.</p>
                         <div id="admin-counters-list" class="space-y-3 mb-4">
                         </div>
-                        <div class="flex gap-3">
-                            <button onclick="addCounter()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl font-bold transition-colors border border-slate-300 flex items-center gap-2"><i class="ph ph-plus-circle text-lg"></i> Thêm Quầy</button>
-                            <button onclick="saveCounters()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-xl font-bold transition-colors shadow-md">💾 Lưu danh sách</button>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button onclick="addCounter()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-xl font-bold transition-colors border border-slate-300 flex justify-center items-center gap-2 w-full sm:w-auto"><i class="ph ph-plus-circle text-lg"></i> Thêm Quầy</button>
+                            <button onclick="saveCounters()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold transition-colors shadow-md flex justify-center items-center gap-2 w-full sm:w-auto"><i class="ph ph-floppy-disk text-lg"></i> Lưu danh sách</button>
                         </div>
                     </div>
 
@@ -354,9 +354,9 @@
                 </div>
 
                 <!-- Danh sách hàng chờ (Phải) -->
-                <div class="w-[40%] 2xl:w-[35%] min-w-[320px] flex flex-col gap-4 lg:gap-6">
+                <div class="w-full lg:w-[40%] 2xl:w-[35%] lg:min-w-[320px] flex flex-col gap-4 lg:gap-6">
                     <!-- Danh sách chờ -->
-                    <div class="flex-1 flex flex-col bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div class="flex-1 flex flex-col bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden min-h-[350px]">
                         <div class="bg-slate-50 p-6 border-b border-slate-200 flex justify-between items-center shadow-sm z-10">
                             <h3 class="font-black text-slate-800 uppercase tracking-wider text-xl flex items-center gap-2">
                                 <i class="ph ph-list-numbers text-red-600 text-2xl"></i>
@@ -420,17 +420,17 @@
                         </button>
 
                         <div class="flex flex-col gap-1.5">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Họ và tên của bạn</label>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Họ và tên của bạn <span class="text-red-500">*</span></label>
                             <input type="text" id="phone-input-name" placeholder="Ví dụ: Nguyễn Văn A" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base">
                         </div>
 
                         <div class="flex flex-col gap-1.5">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Ngày sinh</label>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Ngày sinh <span class="text-red-500">*</span></label>
                             <input type="text" id="phone-input-dob" placeholder="dd/mm/yyyy" maxlength="10" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-base">
                         </div>
 
                         <div class="flex flex-col gap-1.5">
-                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Nơi thường trú</label>
+                            <label class="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Nơi thường trú <span class="text-red-500">*</span></label>
                             <textarea id="phone-input-address" rows="2" placeholder="Tự động điền khi quét CCCD..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all text-slate-800 text-sm"></textarea>
                         </div>
 
@@ -580,6 +580,11 @@
             // Thêm hiển thị ngày giờ đăng ký
             const issueTime = new Date(myTicket.timestamp);
             document.getElementById('phone-my-timestamp').textContent = issueTime.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) + ' - ' + issueTime.toLocaleDateString('vi-VN');
+            
+            // Kích hoạt rung điện thoại báo hiệu thành công (Rung 2 nhịp)
+            if (navigator.vibrate) {
+                navigator.vibrate([200, 100, 200]);
+            }
         });
 
         socket.on('registrationError', (msg) => {
@@ -718,6 +723,7 @@
 
         // --- NGHIỆP VỤ QUÉT CCCD ---
         let html5QrCode = null;
+        let isFlashOn = false;
 
         function startCCCDScan() {
             document.getElementById('cccd-scanner-modal').style.display = 'flex';
@@ -735,10 +741,25 @@
             
             html5QrCode.start(
                 { facingMode: "environment" },
-                { fps: 30, disableFlip: false }, // Bỏ qrbox để quét toàn màn hình, tăng fps lên 30 để siêu nhạy
+                { 
+                    fps: 30, 
+                    disableFlip: false,
+                    qrbox: function(viewfinderWidth, viewfinderHeight) {
+                        // Tạo khung quét QR vuông bằng 70% kích thước nhỏ nhất của màn hình camera
+                        var minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+                        return { width: Math.floor(minEdgeSize * 0.7), height: Math.floor(minEdgeSize * 0.7) };
+                    }
+                },
                 onScanSuccess,
                 onScanFailure
-            ).catch(err => {
+            ).then(() => {
+                // Camera mở thành công, hiển thị nút bật Flash và đặt lại trạng thái
+                document.getElementById('btn-flash').classList.remove('hidden');
+                isFlashOn = false;
+                const btn = document.getElementById('btn-flash');
+                btn.classList.remove('bg-yellow-500', 'text-slate-900');
+                btn.classList.add('bg-slate-700', 'text-white');
+            }).catch(err => {
                 console.error("Camera start error:", err);
                 alert("Không thể mở Camera sau. Vui lòng kiểm tra quyền truy cập Camera!");
             });
@@ -749,8 +770,33 @@
             if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().then(() => {
                     html5QrCode.clear();
+                    document.getElementById('btn-flash').classList.add('hidden');
                 }).catch(err => console.error("Lỗi tắt Camera:", err));
             }
+        }
+
+        function toggleFlash() {
+            if (!html5QrCode || !html5QrCode.isScanning) return;
+            
+            isFlashOn = !isFlashOn;
+            
+            // Yêu cầu trình duyệt điều khiển đèn flash (torch)
+            html5QrCode.applyVideoConstraints({ advanced: [{ torch: isFlashOn }] })
+                .then(() => {
+                    const btn = document.getElementById('btn-flash');
+                    if (isFlashOn) {
+                        btn.classList.replace('bg-slate-700', 'bg-yellow-500');
+                        btn.classList.replace('text-white', 'text-slate-900');
+                    } else {
+                        btn.classList.replace('bg-yellow-500', 'bg-slate-700');
+                        btn.classList.replace('text-slate-900', 'text-white');
+                    }
+                })
+                .catch(err => {
+                    console.warn("Flash error:", err);
+                    alert("Tính năng Đèn Flash không được hỗ trợ trên thiết bị hoặc trình duyệt này!");
+                    isFlashOn = !isFlashOn; // Hoàn tác trạng thái biến nếu bị lỗi
+                });
         }
 
         function onScanSuccess(decodedText, decodedResult) {
@@ -796,6 +842,8 @@
             const serviceCodeInput = document.getElementById('phone-input-service-code').value.trim();
             
             if (!nameInput) return alert("Vui lòng nhập họ và tên của bạn!");
+            if (!dobInput) return alert("Vui lòng nhập ngày sinh!");
+            if (!addressInput) return alert("Vui lòng nhập nơi thường trú!");
             if (!serviceCodeInput) return alert("Vui lòng nhập Mã hồ sơ Dịch vụ công!");
             if (serviceCodeInput.length !== 26) return alert("Mã hồ sơ Dịch vụ công chưa đúng định dạng (Ví dụ: G01.883.801.013-230713-0005)!");
             
@@ -866,11 +914,11 @@
             list.innerHTML = '';
             localCounters.forEach((c, index) => {
                 list.innerHTML += `
-                    <div class="flex gap-2 items-center">
-                        <input type="text" value="${c.name}" placeholder="Tên (VD: Quầy 01)" id="c-name-${index}" class="w-1/4 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-red-500">
-                        <input type="text" value="${c.rank || ''}" placeholder="Cấp bậc (VD: Đại úy)" id="c-rank-${index}" class="w-1/4 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-red-500">
-                        <input type="text" value="${c.staff || ''}" placeholder="Họ tên cán bộ" id="c-staff-${index}" class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-red-500">
-                        <button onclick="removeCounter(${index})" class="bg-red-100 hover:bg-red-200 text-red-600 p-2 rounded-lg transition-colors"><i class="ph ph-trash text-lg"></i></button>
+                    <div class="flex flex-wrap lg:flex-nowrap gap-2 items-center bg-slate-50 p-3 lg:p-0 lg:bg-transparent rounded-xl border border-slate-100 lg:border-none w-full">
+                        <input type="text" value="${c.name}" placeholder="Tên (VD: Quầy 01)" id="c-name-${index}" class="w-[48%] lg:w-1/4 bg-white lg:bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-red-500">
+                        <input type="text" value="${c.rank || ''}" placeholder="Cấp bậc (VD: Đại úy)" id="c-rank-${index}" class="w-[48%] lg:w-1/4 bg-white lg:bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-red-500">
+                        <input type="text" value="${c.staff || ''}" placeholder="Họ tên cán bộ" id="c-staff-${index}" class="w-full lg:flex-1 bg-white lg:bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-red-500 mt-1 lg:mt-0">
+                        <button onclick="removeCounter(${index})" class="bg-red-100 hover:bg-red-200 text-red-600 p-2 rounded-lg transition-colors w-full lg:w-auto mt-1 lg:mt-0 flex justify-center items-center"><i class="ph ph-trash text-lg"></i></button>
                     </div>
                 `;
             });
@@ -1034,6 +1082,8 @@
             // 1. Cập nhật Màn hình Tivi
             const tvNumber = document.getElementById('tv-current-number');
             const tvCounter = document.getElementById('tv-current-counter');
+            const tvCitizenNameWrapper = document.getElementById('tv-citizen-name-wrapper');
+            const tvCurrentCitizenName = document.getElementById('tv-current-citizen-name');
             
             if (state.currentServing) {
                 tvNumber.textContent = formatNumber(state.currentServing.number);
@@ -1053,12 +1103,21 @@
                     document.getElementById('tv-current-staff').classList.add('hidden');
                 }
                 tvNumber.classList.remove('text-slate-700');
+                
+                if (tvCitizenNameWrapper && tvCurrentCitizenName) {
+                    if (state.currentServing.name) {
+                        tvCurrentCitizenName.textContent = state.currentServing.name;
+                        tvCitizenNameWrapper.classList.remove('hidden');
+                    } else {
+                        tvCitizenNameWrapper.classList.add('hidden');
+                    }
+                }
             } else {
                 tvNumber.textContent = "--";
                 tvCounter.textContent = "--";
-            if (tvCitizenName) {
-                tvCitizenName.classList.add('hidden');
-            }
+                if (tvCitizenNameWrapper) {
+                    tvCitizenNameWrapper.classList.add('hidden');
+                }
                 tvNumber.classList.add('text-slate-700');
             }
 
