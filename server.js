@@ -3,8 +3,9 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const fs = require('fs');
+const cron = require('node-cron');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, setDoc, getDoc, collection, addDoc } = require('firebase/firestore');
+const { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, deleteDoc } = require('firebase/firestore');
 
 // -----------------------------------------
 // CẤU HÌNH FIREBASE
@@ -31,6 +32,11 @@ const io = new Server(server, {
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Endpoint siêu nhẹ để các dịch vụ bên ngoài ping giữ server luôn thức (chống ngủ đông)
+app.get('/ping', (req, res) => {
+    res.status(200).send('pong');
+});
 
 // Đảm bảo mọi truy cập đều trỏ về file index.html (Khắc phục lỗi Cannot GET /)
 app.get('*', (req, res) => {
@@ -122,13 +128,18 @@ io.on('connection', (socket) => {
     });
 
     socket.on('registerTicket', (userData) => {
-        // Kiểm tra xem Mã hồ sơ DVC đã tồn tại trong danh sách chờ hoặc lịch sử chưa
-        if (userData.serviceCode) {
-            const isDuplicate = state.waitingList.some(ticket => ticket.serviceCode === userData.serviceCode) ||
-                                state.historyList.some(ticket => ticket.serviceCode === userData.serviceCode);
-
+        // Kiểm tra chống spam: Giới hạn mỗi số điện thoại hoặc Mã hồ sơ DVC chỉ được lấy 1 số trong ngày
+        if (userData.serviceCode || userData.phone) {
+            const isDuplicate = state.waitingList.some(ticket => 
+                (userData.serviceCode && ticket.serviceCode === userData.serviceCode) ||
+                (userData.phone && ticket.phone === userData.phone)
+            ) || state.historyList.some(ticket => 
+                (userData.serviceCode && ticket.serviceCode === userData.serviceCode) ||
+                (userData.phone && ticket.phone === userData.phone)
+            );
+            
             if (isDuplicate) {
-                socket.emit('registrationError', 'Mã hồ sơ này đã được lấy số rồi! Vui lòng kiểm tra lại.');
+                socket.emit('registrationError', 'Lỗi: Số điện thoại hoặc Mã hồ sơ này đã được sử dụng để lấy số trong ngày hôm nay! Mỗi người chỉ được lấy 1 số/ngày.');
                 return;
             }
         }
@@ -138,6 +149,7 @@ io.on('connection', (socket) => {
             name: userData.name,
             dob: userData.dob,
             address: userData.address,
+            phone: userData.phone,
             service: userData.service,
             serviceCode: userData.serviceCode,
             timestamp: new Date().toISOString()
@@ -276,36 +288,34 @@ io.on('connection', (socket) => {
     });
 });
 
-function scheduleMidnightReset() {
-    const now = new Date();
-    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
-    const timeToMidnight = nextMidnight.getTime() - now.getTime();
+// Lên lịch tự động reset dữ liệu vào 00:00 mỗi ngày theo giờ Việt Nam
+cron.schedule('0 0 * * *', async () => {
+    state = { waitingList: [], historyList: [], skippedList: [], stats: {}, currentServing: null, nextNumberToIssue: 1, marqueeText: state.marqueeText, counters: state.counters };
+    saveState();
+    
+    // Tự động xóa toàn bộ lịch sử trên Firebase vào nửa đêm
+    try {
+        const querySnapshot = await getDocs(collection(db, "historyLogs"));
+        querySnapshot.forEach((document) => {
+            deleteDoc(doc(db, "historyLogs", document.id)).catch(()=>{});
+        });
+        console.log('☁️ [Firebase] Đã tự động dọn dẹp lịch sử (historyLogs) lúc 00:00.');
+    } catch (err) {
+        console.error('⚠️ [Lỗi Firebase] Dọn dẹp lịch sử thất bại:', err.message);
+    }
 
-    setTimeout(async () => {
-        state = { waitingList: [], historyList: [], skippedList: [], stats: {}, currentServing: null, nextNumberToIssue: 1, marqueeText: state.marqueeText, counters: state.counters };
-        saveState();
-        
-        // Tự động xóa toàn bộ lịch sử trên Firebase vào nửa đêm
-        try {
-            const querySnapshot = await getDocs(collection(db, "historyLogs"));
-            querySnapshot.forEach((document) => {
-                deleteDoc(doc(db, "historyLogs", document.id)).catch(()=>{});
-            });
-            console.log('☁️ [Firebase] Đã tự động dọn dẹp lịch sử (historyLogs) lúc nửa đêm.');
-        } catch (err) {
-            console.error('⚠️ [Lỗi Firebase] Dọn dẹp lịch sử thất bại:', err.message);
-        }
-
-        console.log('[Auto-Reset] Hệ thống đã tự động làm mới về 0 vào lúc nửa đêm.');
+    console.log('[Auto-Reset] Hệ thống đã tự động làm mới về 0 vào lúc 00:00 (Giờ VN).');
+    if (io) {
         io.emit('updateQueue', state);
-        scheduleMidnightReset();
-    }, timeToMidnight);
-}
+    }
+}, {
+    scheduled: true,
+    timezone: "Asia/Ho_Chi_Minh"
+});
 
 const PORT = process.env.PORT || 3000;
 
 loadState().then(() => {
-    scheduleMidnightReset();
     server.listen(PORT, '0.0.0.0', () => {
         console.log(`🚀 Server đang chạy thành công tại cổng ${PORT}`);
         console.log(`👉 Truy cập trên máy tính: http://localhost:${PORT}`);
