@@ -336,6 +336,17 @@
                         </div>
                     </div>
 
+                    <!-- Thống kê theo Quầy -->
+                    <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
+                        <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2 uppercase tracking-wider border-b border-slate-100 pb-4">
+                            <i class="ph ph-user-list text-red-600 text-2xl"></i>
+                            Thống kê theo Quầy
+                        </h3>
+                        <div id="admin-counter-statistics" class="space-y-2">
+                            <!-- Thống kê quầy render ở đây -->
+                        </div>
+                    </div>
+
                     <!-- Lịch sử -->
                     <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-200 h-[30%] min-h-[250px] flex flex-col">
                         <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
@@ -683,6 +694,31 @@
             e.target.value = formatted;
         });
 
+        // --- CẤU HÌNH GIỌNG ĐỌC AI ---
+        let preferredVoice = null;
+
+        function loadVoices() {
+            const voices = window.speechSynthesis.getVoices();
+            // Lọc ra danh sách các giọng Tiếng Việt
+            const viVoices = voices.filter(v => v.lang.includes('vi'));
+            
+            // Ưu tiên tìm các giọng AI mượt mà (Đổi thứ tự để ưu tiên giọng Bắc/Nam)
+            // - Microsoft HoaiMy: Giọng Nữ Nam Bộ (Cực mượt)
+            // - Microsoft NamMinh: Giọng Nam Bắc Bộ
+            preferredVoice = viVoices.find(v => v.name.includes('HoaiMy')) 
+                          || viVoices.find(v => v.name.includes('NamMinh'))
+                          || viVoices.find(v => v.name.includes('Natural'))
+                          || viVoices.find(v => v.name.includes('Google'))
+                          || viVoices[0];
+        }
+
+        if ('speechSynthesis' in window) {
+            loadVoices();
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = loadVoices;
+            }
+        }
+
         function switchScreen(screenId) {
             // Chặn vào Admin nếu chưa đăng nhập
             if (screenId === 'screen-admin' && !isAdminLoggedIn) {
@@ -1006,22 +1042,30 @@
             // 2. Phát âm thanh (Sử dụng Web Speech API đọc tiếng Việt)
             try {
                 window.speechSynthesis.cancel();
-                const bell = new Audio('https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg');
-                bell.volume = 0.5;
+                // Sử dụng âm thanh chuông "Ting ting/Ding dong" chuyên nghiệp và bật max volume
+                const bell = new Audio('https://actions.google.com/sounds/v1/alarms/doorbell.ogg');
+                bell.volume = 1.0;
                 
                 bell.play().then(() => {
+                    // Đợi 2 giây (2000ms) để chuông ngân vang xong mới bắt đầu đọc số
                     setTimeout(() => {
                         const msg = new SpeechSynthesisUtterance();
                         const numStr = formatNumber(number).split('').join(' ');
                         
                         const citizenName = state.currentServing.name;
+                        let singleText = "";
                         if (citizenName) {
-                            msg.text = `Xin mời công dân ${citizenName}, mang số, ${numStr}, đến ${counterName}.`;
+                            singleText = `Xin mời công dân ${citizenName}, số, ${numStr}, đến ${counterName}.`;
                         } else {
-                            msg.text = `Mời công dân mang số, ${numStr}, đến ${counterName}.`;
+                            singleText = `Xin mời số, ${numStr}, đến ${counterName}.`;
                         }
+                        // Nhân đôi câu thông báo để Tivi đọc 2 lần
+                        msg.text = singleText + " " + singleText;
                         
                         msg.lang = 'vi-VN';
+                        if (preferredVoice) {
+                            msg.voice = preferredVoice;
+                        }
                         msg.rate = 0.85; 
                         window.speechSynthesis.speak(msg);
                     }, 1000);
@@ -1209,6 +1253,26 @@
                 }
             }
 
+            // Cập nhật Thống kê theo Quầy
+            const counterStatsContainer = document.getElementById('admin-counter-statistics');
+            if (counterStatsContainer) {
+                if (!state.counterStats || Object.keys(state.counterStats).length === 0) {
+                    counterStatsContainer.innerHTML = '<p class="text-sm text-slate-500 italic">Chưa có quầy nào phục vụ.</p>';
+                } else {
+                    counterStatsContainer.innerHTML = Object.keys(state.counterStats).map(counterId => {
+                        const counter = state.counters.find(c => c.id === counterId);
+                        const counterName = counter ? counter.name : `Quầy ${counterId}`;
+                        const count = state.counterStats[counterId];
+                        
+                        return `
+                        <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <span class="text-sm font-bold text-slate-700">${counterName}</span>
+                            <span class="bg-blue-100 text-blue-700 font-black px-3 py-1 rounded-full text-sm">${count}</span>
+                        </div>`;
+                    }).join('');
+                }
+            }
+
             // 2. Cập nhật Màn hình Admin
             const adminNumber = document.getElementById('admin-current-serving');
             if (state.currentServing) adminNumber.textContent = formatNumber(state.currentServing.number);
@@ -1229,12 +1293,16 @@
             // TÌM KIẾM
             const searchInputEl = document.getElementById('admin-search-input');
             const searchTerm = searchInputEl ? searchInputEl.value.toLowerCase().trim() : '';
+            const filterServiceEl = document.getElementById('admin-filter-service');
+            const filterService = filterServiceEl ? filterServiceEl.value : '';
 
-            const filteredWaitingList = state.waitingList.filter(item => 
-                item.name.toLowerCase().includes(searchTerm) || 
-                formatNumber(item.number).includes(searchTerm) || 
-                (item.serviceCode && item.serviceCode.toLowerCase().includes(searchTerm))
-            );
+            const filteredWaitingList = state.waitingList.filter(item => {
+                const matchSearch = item.name.toLowerCase().includes(searchTerm) || 
+                                    formatNumber(item.number).includes(searchTerm) || 
+                                    (item.serviceCode && item.serviceCode.toLowerCase().includes(searchTerm));
+                const matchService = filterService ? item.service === filterService : true;
+                return matchSearch && matchService;
+            });
 
             if (state.waitingList.length === 0) {
                 btnCall.disabled = true;
@@ -1249,7 +1317,7 @@
                     document.getElementById('admin-waiting-list').innerHTML = filteredWaitingList.map((item) => {
                         const originalIndex = state.waitingList.indexOf(item);
                         return `
-                        <div class="bg-white p-4 mb-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center group">
+                        <div onclick="showCitizenDetails(${item.number})" class="bg-white p-4 mb-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center group cursor-pointer hover:border-red-300 hover:shadow-md transition-all">
                             <div class="flex items-center gap-4">
                                 <div class="bg-slate-100 text-slate-500 text-lg font-bold px-4 py-2 rounded-lg">${originalIndex + 1}</div>
                                 <div>
@@ -1261,6 +1329,9 @@
                                     ${item.address ? `<div class="text-xs text-slate-400 truncate max-w-[200px]" title="${item.address}">${item.address}</div>` : ''}
                                 </div>
                             </div>
+                            <button onclick="event.stopPropagation(); prioritizeCitizen(${item.number})" class="opacity-0 group-hover:opacity-100 transition-opacity bg-yellow-50 hover:bg-yellow-100 text-yellow-600 border border-yellow-200 p-2.5 rounded-lg shadow-sm" title="Ưu tiên đẩy lên đầu hàng chờ">
+                                <i class="ph ph-star-fill text-xl"></i>
+                            </button>
                         </div>
                     `}).join('');
                 }
@@ -1271,7 +1342,7 @@
                  adminHistoryListEl.innerHTML = `<p class="text-slate-400 text-center mt-4 text-sm italic">Chưa có dữ liệu</p>`;
             } else {
                  adminHistoryListEl.innerHTML = state.historyList.map(item => `
-                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center">
+                    <div onclick="showCitizenDetails(${item.number})" class="bg-slate-50 hover:bg-red-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center cursor-pointer transition-colors" title="Xem chi tiết">
                         <div class="flex items-center gap-3">
                             <i class="ph ph-check-circle text-red-600 text-2xl"></i>
                             <span class="font-black text-slate-700 text-lg">${formatNumber(item.number)}</span>
@@ -1314,7 +1385,7 @@
 
                             return `
                             <div class="${containerClass}">
-                                <div class="flex items-center gap-3">
+                                <div class="flex items-center gap-3 cursor-pointer hover:opacity-70 transition-opacity w-full" onclick="showCitizenDetails(${item.number})" title="Bấm để xem chi tiết">
                                     <div class="bg-orange-100 text-orange-700 text-lg font-bold px-3 py-1.5 rounded-lg">${formatNumber(item.number)}</div>
                                     <div>
                                         <div class="text-sm text-slate-800 font-bold">${item.name}</div>
