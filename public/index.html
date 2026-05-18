@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hệ thống Lấy Số Tự Động</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -176,6 +177,7 @@
 
         <!-- ==================== MÀN HÌNH TIVI (Hiển thị) ==================== -->
         <div id="screen-tv" class="absolute inset-0 hidden flex flex-col bg-slate-950">
+        <div id="screen-tv" class="absolute inset-0 hidden flex-col items-center justify-center bg-black overflow-hidden">
             <!-- Nút Fullscreen -->
             <button onclick="toggleFullScreen()" title="Toàn màn hình" class="absolute top-6 right-6 z-50 bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl backdrop-blur transition-all opacity-30 hover:opacity-100 border border-white/10">
                 <i class="ph ph-corners-out text-2xl"></i>
@@ -186,6 +188,8 @@
                 <i class="ph ph-house text-2xl"></i>
             </button>
 
+            <!-- TV Board cố định độ phân giải 1920x1080 và dùng JS để Zoom -->
+            <div id="tv-board" class="w-[1920px] h-[1080px] flex flex-col bg-slate-950 origin-center shrink-0 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
             <!-- Header Tivi -->
             <div class="bg-red-900/90 text-white p-4 border-b-[4px] border-yellow-500 flex justify-between items-center z-10 shadow-lg relative overflow-hidden">
                 <div class="absolute inset-0 bg-gradient-to-r from-red-800 to-red-950"></div>
@@ -270,6 +274,7 @@
             <!-- Dòng chữ chạy dưới cùng (Marquee) -->
             <div class="bg-red-700 text-white font-bold text-[32px] py-4 shadow-[0_-4px_10px_rgba(0,0,0,0.2)] z-20 marquee-container">
                 <div id="marquee-text" class="marquee-content">Kính chào công dân! Vui lòng chuẩn bị sẵn Căn cước công dân và các giấy tờ cần thiết trong lúc chờ đợi để phục vụ nhanh chóng.</div>
+            </div>
             </div>
         </div>
 
@@ -792,6 +797,23 @@
             }
         }
 
+        // Tự động thu phóng (scale) Tivi hiển thị vừa vặn độ phân giải hiện tại
+        function scaleToFit() {
+            const board = document.getElementById('tv-board');
+            if (!board) return;
+
+            // Kích thước thiết kế chuẩn 16:9
+            const designWidth = 1920;
+            const designHeight = 1080;
+
+            // Tính tỷ lệ cần phóng (lấy min để đảm bảo không bị mất phần nào của viền)
+            const scale = Math.min(window.innerWidth / designWidth, window.innerHeight / designHeight);
+            board.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('resize', scaleToFit);
+        window.addEventListener('load', scaleToFit);
+
         function switchScreen(screenId) {
             // Chặn vào Admin nếu chưa đăng nhập
             if (screenId === 'screen-admin' && !isAdminLoggedIn) {
@@ -804,6 +826,10 @@
             document.getElementById(screenId).style.display = (screenId === 'screen-phone') ? 'block' : 'flex';
 
             if (screenId === 'screen-tv') generateQRCode();
+            if (screenId === 'screen-tv') {
+                generateQRCode();
+                setTimeout(scaleToFit, 50); // Cập nhật lại scale cho chắc chắn sau khi render DOM
+            }
         }
 
         function submitLogin() {
@@ -1135,30 +1161,39 @@
                 const bell = new Audio('https://actions.google.com/sounds/v1/alarms/doorbell.ogg');
                 bell.volume = 1.0;
                 
-                bell.play().then(() => {
-                    // Đợi 2 giây (2000ms) để chuông ngân vang xong mới bắt đầu đọc số
-                    setTimeout(() => {
-                        const msg = new SpeechSynthesisUtterance();
-                        const numStr = formatNumber(number).split('').join(' ');
-                        
-                        const citizenName = state.currentServing.name;
-                        let singleText = "";
-                        if (citizenName) {
-                            singleText = `Xin mời công dân ${citizenName}, số, ${numStr}, đến ${counterName}.`;
-                        } else {
-                            singleText = `Xin mời số, ${numStr}, đến ${counterName}.`;
-                        }
-                        // Nhân đôi câu thông báo để Tivi đọc 2 lần
-                        msg.text = singleText + " " + singleText;
-                        
-                        msg.lang = 'vi-VN';
-                        if (preferredVoice) {
-                            msg.voice = preferredVoice;
-                        }
-                        msg.rate = 0.85; 
-                        window.speechSynthesis.speak(msg);
-                    }, 1000);
-                }).catch(e => console.log("Hãy click một lần vào màn hình Tivi để bật tiếng!"));
+                // Hàm phụ trách việc đọc giọng nói
+                const speakText = () => {
+                    const msg = new SpeechSynthesisUtterance();
+                    const numStr = formatNumber(number).split('').join(' ');
+                    
+                    const citizenName = state.currentServing.name;
+                    let singleText = "";
+                    if (citizenName) {
+                        singleText = `Xin mời công dân ${citizenName}, số, ${numStr}, đến ${counterName}.`;
+                    } else {
+                        singleText = `Xin mời số, ${numStr}, đến ${counterName}.`;
+                    }
+                    // Nhân đôi câu thông báo để Tivi đọc 2 lần
+                    msg.text = singleText + " " + singleText;
+                    
+                    msg.lang = 'vi-VN';
+                    if (preferredVoice) {
+                        msg.voice = preferredVoice;
+                    }
+                    msg.rate = 0.85; 
+                    window.speechSynthesis.speak(msg);
+                };
+
+                // Xử lý phát tiếng chuông, nếu bị chặn (Autoplay) thì vẫn cố gắng gọi hàm đọc giọng nói
+                const playPromise = bell.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => setTimeout(speakText, 1000))
+                        .catch(e => {
+                            console.log("Chuông bị chặn do chưa click vào màn hình, vẫn thử đọc số...");
+                            speakText(); // Vẫn gọi hàm đọc số
+                        });
+                }
             } catch (error) {
                 console.error("Lỗi phát âm thanh:", error);
             }
